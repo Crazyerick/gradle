@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import org.gradle.gradlebuild.testing.integrationtests.cleanup.WhenNotEmpty
 import org.gradle.build.BuildReceipt
-import org.gradle.gradlebuild.test.integrationtests.IntegrationTest
 import org.gradle.gradlebuild.test.integrationtests.integrationTestUsesSampleDir
+import org.gradle.gradlebuild.testing.integrationtests.cleanup.WhenNotEmpty
 
 plugins {
-    gradlebuild.distribution.`core-api-java`
+    gradlebuild.distribution.`api-java`
     gradlebuild.`publish-public-libraries`
     gradlebuild.`shaded-jar`
 }
@@ -36,7 +35,7 @@ shadedJar {
 }
 
 dependencies {
-    "shadedImplementation"(library("slf4j_api")) { version { require(libraryVersion("slf4j_api")) } }
+    shadedImplementation(library("slf4j_api")) { version { require(libraryVersion("slf4j_api")) } }
 
     implementation(project(":baseServices"))
     implementation(project(":messaging"))
@@ -44,6 +43,7 @@ dependencies {
     implementation(project(":coreApi"))
     implementation(project(":core"))
     implementation(project(":wrapper"))
+    implementation(project(":persistentCache"))
 
     implementation(library("guava"))
 
@@ -52,28 +52,16 @@ dependencies {
     testFixturesImplementation(project(":modelCore"))
     testFixturesImplementation(project(":baseServices"))
     testFixturesImplementation(project(":baseServicesGroovy"))
-    testFixturesImplementation(project(":internalTesting"))
     testFixturesImplementation(project(":internalIntegTesting"))
     testFixturesImplementation(library("commons_io"))
     testFixturesImplementation(library("slf4j_api"))
 
     integTestImplementation(project(":jvmServices"))
     integTestImplementation(project(":persistentCache"))
-    integTestRuntimeOnly(project(":toolingApiBuilders"))
-    integTestRuntimeOnly(project(":ivy"))
 
     crossVersionTestImplementation(project(":jvmServices"))
     crossVersionTestImplementation(testLibrary("jetty"))
     crossVersionTestImplementation(library("commons_io"))
-
-    crossVersionTestRuntimeOnly(project(":kotlinDsl"))
-    crossVersionTestRuntimeOnly(project(":kotlinDslProviderPlugins"))
-    crossVersionTestRuntimeOnly(project(":kotlinDslToolingBuilders"))
-    crossVersionTestRuntimeOnly(project(":ivy"))
-    crossVersionTestRuntimeOnly(project(":maven"))
-    crossVersionTestRuntimeOnly(project(":apiMetadata"))
-    crossVersionTestRuntimeOnly(project(":runtimeApiInfo"))
-    crossVersionTestRuntimeOnly(project(":testingJunitPlatform"))
     crossVersionTestRuntimeOnly(testLibrary("cglib")) {
         because("BuildFinishedCrossVersionSpec classpath inference requires cglib enhancer")
     }
@@ -84,11 +72,19 @@ dependencies {
     testImplementation(testFixtures(project(":ide")))
     testImplementation(testFixtures(project(":workers")))
 
-    integTestRuntimeOnly(project(":runtimeApiInfo"))
-    integTestRuntimeOnly(project(":kotlinDsl"))
-    integTestRuntimeOnly(project(":kotlinDslProviderPlugins"))
-    integTestRuntimeOnly(project(":kotlinDslToolingBuilders"))
-    integTestRuntimeOnly(project(":apiMetadata"))
+    integTestNormalizedDistribution(project(":distributionsFull")) {
+        because("Used by ToolingApiRemoteIntegrationTest")
+    }
+
+    integTestDistributionRuntimeOnly(project(":distributionsFull"))
+    integTestLocalRepository(project(path)) {
+        because("ToolingApiResolveIntegrationTest and ToolingApiClasspathIntegrationTest use the Tooling API Jar")
+    }
+
+    crossVersionTestDistributionRuntimeOnly(project(":distributionsFull"))
+    crossVersionTestLocalRepository(project(path)) {
+        because("ToolingApiVersionSpecification uses the Tooling API Jar")
+    }
 }
 
 strictCompile {
@@ -100,11 +96,6 @@ classycle {
 }
 
 apply(from = "buildship.gradle")
-
-tasks.withType<IntegrationTest>().configureEach {
-    binaryDistributions.binZipRequired = true
-    libsRepository.required = true
-}
 
 testFilesCleanup {
     policy.set(WhenNotEmpty.REPORT)

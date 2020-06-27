@@ -29,8 +29,8 @@ import org.gradle.instantexecution.problems.buildConsoleSummary
 import org.gradle.instantexecution.problems.firstTypeFrom
 import org.gradle.instantexecution.problems.taskPathFrom
 
-import org.gradle.util.GFileUtils.copyURLToFile
-
+import java.io.BufferedReader
+import java.io.BufferedWriter
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -40,7 +40,10 @@ import java.net.URL
 class InstantExecutionReport(
 
     private
-    val startParameter: InstantExecutionStartParameter
+    val startParameter: InstantExecutionStartParameter,
+
+    private
+    val cacheKey: InstantExecutionCacheKey
 
 ) {
 
@@ -56,7 +59,7 @@ class InstantExecutionReport(
     private
     val outputDirectory: File by lazy {
         startParameter.rootDirectory.resolve(
-            "build/reports/configuration-cache/${startParameter.instantExecutionCacheKey}"
+            "build/reports/configuration-cache/$cacheKey"
         ).let { base ->
             if (!base.exists()) base
             else generateSequence(1) { it + 1 }
@@ -70,59 +73,87 @@ class InstantExecutionReport(
         get() = outputDirectory.resolve(reportHtmlFileName)
 
     internal
-    fun logConsoleSummary(problems: List<PropertyProblem>) {
-        logger.warn(buildConsoleSummary(problems, htmlReportFile))
+    fun logConsoleSummary(cacheAction: String, problems: List<PropertyProblem>) {
+        logger.warn(buildConsoleSummary(cacheAction, problems, htmlReportFile))
     }
 
     internal
-    fun writeReportFiles(problems: List<PropertyProblem>) {
+    fun writeReportFiles(cacheAction: String, problems: List<PropertyProblem>) {
         require(outputDirectory.mkdirs()) {
             "Could not create configuration cache report directory '$outputDirectory'"
         }
-        copyReportResources(outputDirectory)
-        writeJsReportData(problems, outputDirectory)
+        writeReportFile(cacheAction, problems, outputDirectory)
     }
 
+    /**
+     * Writes the report file to [outputDirectory].
+     *
+     * The file is laid out in such a way as to allow extracting the pure JSON model,
+     * see [writeJsReportData].
+     */
     private
-    fun copyReportResources(outputDirectory: File) {
-        listOf(
-            reportHtmlFileName,
-            "configuration-cache-report.js",
-            "configuration-cache-report.css",
-            "kotlin.js"
-        ).forEach { resourceName ->
-            copyURLToFile(
-                javaClass.requireResource(resourceName),
-                outputDirectory.resolve(resourceName)
-            )
-        }
-    }
-
-    private
-    fun writeJsReportData(problems: List<PropertyProblem>, outputDirectory: File) {
-        val documentationRegistry = DocumentationRegistry()
-        outputDirectory.resolve("configuration-cache-report-data.js").bufferedWriter().use { writer ->
-            writer.run {
-                appendln("function configurationCacheProblems() { return {")
-                appendln("documentationLink: \"${documentationRegistry.getDocumentationFor("configuration_cache")}\",")
-                appendln("problems: [")
-                problems.forEach {
-                    append(
-                        JsonOutput.toJson(
-                            mapOf(
-                                "trace" to traceListOf(it),
-                                "message" to it.message.fragments,
-                                "documentationLink" to it.documentationSection?.let { documentationRegistry.getDocumentationFor("configuration_cache", it) },
-                                "error" to stackTraceStringOf(it)
-                            )
-                        )
-                    )
-                    appendln(",")
-                }
-                appendln("]")
-                appendln("};}")
+    fun writeReportFile(cacheAction: String, problems: List<PropertyProblem>, outputDirectory: File) {
+        val html = javaClass.requireResource(reportHtmlFileName)
+        outputDirectory.resolve(reportHtmlFileName).bufferedWriter().use { writer ->
+            html.openStream().bufferedReader().use { reader ->
+                writer.writeReportFileText(reader, cacheAction, problems)
             }
         }
+    }
+
+    private
+    fun BufferedWriter.writeReportFileText(htmlReader: BufferedReader, cacheAction: String, problems: List<PropertyProblem>) {
+        var dataWritten = false
+        htmlReader.forEachLine { line ->
+            if (!dataWritten && line.contains("configuration-cache-report-data.js")) {
+                appendln("""<script type="text/javascript">""")
+                writeJsReportData(cacheAction, problems)
+                appendln("</script>")
+                dataWritten = true
+            } else {
+                appendln(line)
+            }
+        }
+        require(dataWritten) { "Didn't write report data, placeholder not found!" }
+    }
+
+    /**
+     * Writes the report data function.
+     *
+     * The text is laid out in such a way as to allow extracting the pure JSON model
+     * by looking for `// begin-report-data` and `// end-report-data`.
+     */
+    private
+    fun BufferedWriter.writeJsReportData(cacheAction: String, problems: List<PropertyProblem>) {
+        appendln("function configurationCacheProblems() { return (")
+        appendln("// begin-report-data")
+        writeJsonModelFor(cacheAction, problems)
+        appendln("// end-report-data")
+        appendln(");}")
+    }
+
+    private
+    fun BufferedWriter.writeJsonModelFor(cacheAction: String, problems: List<PropertyProblem>) {
+        val documentationRegistry = DocumentationRegistry()
+        appendln("{") // begin JSON
+        appendln("\"cacheAction\": \"$cacheAction\",")
+        appendln("\"documentationLink\": \"${documentationRegistry.getDocumentationFor("configuration_cache")}\",")
+        appendln("\"problems\": [") // begin problems
+        problems.forEachIndexed { index, problem ->
+            if (index > 0) append(',')
+            append(
+                JsonOutput.toJson(
+                    mapOf(
+                        "trace" to traceListOf(problem),
+                        "message" to problem.message.fragments,
+                        "documentationLink" to problem.documentationSection?.let { documentationRegistry.getDocumentationFor("configuration_cache", it) },
+                        "error" to stackTraceStringOf(problem)
+                    )
+                )
+            )
+        }
+        appendln("]") // end problems
+        appendln("}") // end JSON
     }
 
     private
@@ -168,6 +199,14 @@ class InstantExecutionReport(
         is PropertyTrace.Bean -> mapOf(
             "kind" to "Bean",
             "type" to trace.type.name
+        )
+        is PropertyTrace.BuildLogic -> mapOf(
+            "kind" to "BuildLogic",
+            "location" to trace.displayName.displayName
+        )
+        is PropertyTrace.BuildLogicClass -> mapOf(
+            "kind" to "Class",
+            "type" to trace.name
         )
         PropertyTrace.Gradle -> mapOf(
             "kind" to "Gradle"

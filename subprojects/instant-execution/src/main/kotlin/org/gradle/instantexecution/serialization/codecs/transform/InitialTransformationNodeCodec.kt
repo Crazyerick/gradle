@@ -16,31 +16,41 @@
 
 package org.gradle.instantexecution.serialization.codecs.transform
 
-import org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact.ResolvableArtifact
+import org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact.ArtifactBackedResolvedVariant
 import org.gradle.api.internal.artifacts.transform.ArtifactTransformListener
 import org.gradle.api.internal.artifacts.transform.TransformationNode
 import org.gradle.api.internal.artifacts.transform.TransformationStep
+import org.gradle.instantexecution.serialization.Codec
 import org.gradle.instantexecution.serialization.ReadContext
 import org.gradle.instantexecution.serialization.WriteContext
+import org.gradle.instantexecution.serialization.readNonNull
+import org.gradle.instantexecution.serialization.withCodec
 import org.gradle.internal.operations.BuildOperationExecutor
 
 
 internal
 class InitialTransformationNodeCodec(
+    private val userTypesCodec: Codec<Any?>,
     private val buildOperationExecutor: BuildOperationExecutor,
     private val transformListener: ArtifactTransformListener
 ) : AbstractTransformationNodeCodec<TransformationNode.InitialTransformationNode>() {
 
     override suspend fun WriteContext.doEncode(value: TransformationNode.InitialTransformationNode) {
-        write(value.transformationStep)
-        writeDependenciesResolver(value)
-        write(value.inputArtifact)
+        withCodec(userTypesCodec) {
+            write(value.transformationStep)
+            write(transformDependencies(value))
+        }
+        write((value.inputArtifacts as ArtifactBackedResolvedVariant.SingleLocalArtifactSet).artifact)
     }
 
     override suspend fun ReadContext.doDecode(): TransformationNode.InitialTransformationNode {
-        val transformationStep = read() as TransformationStep
-        val resolver = readDependenciesResolver()
-        val artifact = read() as ResolvableArtifact
-        return TransformationNode.initial(transformationStep, artifact, resolver, buildOperationExecutor, transformListener)
+        val transformationStep = withCodec(userTypesCodec) {
+            readNonNull<TransformationStep>()
+        }
+        val resolver = withCodec(userTypesCodec) {
+            (read() as TransformDependencies).recreate()
+        }
+        val artifacts = ArtifactBackedResolvedVariant.SingleLocalArtifactSet(readNonNull())
+        return TransformationNode.initial(transformationStep, artifacts, resolver, buildOperationExecutor, transformListener)
     }
 }

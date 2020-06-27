@@ -2,7 +2,7 @@ import org.gradle.gradlebuild.test.integrationtests.integrationTestUsesSampleDir
 
 
 plugins {
-    gradlebuild.distribution.`plugins-api-java`
+    gradlebuild.distribution.`api-java`
 }
 
 dependencies {
@@ -32,12 +32,16 @@ dependencies {
     testImplementation(library("ant"))
     testImplementation(testFixtures(project(":core")))
     testImplementation(testFixtures(project(":diagnostics")))
+    testImplementation(testFixtures(project(":logging")))
     testImplementation(testFixtures(project(":platformBase")))
     testImplementation(testFixtures(project(":platformNative")))
 
-    testRuntimeOnly(project(":runtimeApiInfo"))
-
     integTestImplementation(library("slf4j_api"))
+
+    testRuntimeOnly(project(":distributionsCore")) {
+        because("Tests instantiate DefaultClassLoaderRegistry which requires a 'gradle-plugins.properties' through DefaultPluginModuleRegistry")
+    }
+    integTestDistributionRuntimeOnly(project(":distributionsCore"))
 }
 
 strictCompile {

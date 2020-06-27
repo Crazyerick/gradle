@@ -2,7 +2,7 @@ import build.futureKotlin
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    gradlebuild.distribution.`plugins-implementation-kotlin`
+    gradlebuild.distribution.`implementation-kotlin`
 }
 
 tasks {
@@ -37,20 +37,24 @@ afterEvaluate {
 dependencies {
     implementation(project(":baseServices"))
     implementation(project(":baseServicesGroovy"))
-    implementation(project(":messaging"))
-    implementation(project(":logging"))
-    implementation(project(":coreApi"))
     implementation(project(":core"))
-    implementation(project(":resources"))
-    implementation(project(":snapshots"))
-    implementation(project(":modelCore"))
-    implementation(project(":fileCollections"))
+    implementation(project(":coreApi"))
     implementation(project(":dependencyManagement"))
+    implementation(project(":execution"))
+    implementation(project(":fileCollections"))
+    implementation(project(":kotlinDsl"))
+    implementation(project(":logging"))
+    implementation(project(":messaging"))
+    implementation(project(":modelCore"))
     implementation(project(":persistentCache"))
     implementation(project(":plugins"))
-    implementation(project(":kotlinDsl"))
+    implementation(project(":publish"))
+    implementation(project(":resources"))
+    implementation(project(":snapshots"))
+
     // TODO - move the isolatable serializer to model-core to live with the isolatable infrastructure
     implementation(project(":workers"))
+
     // TODO - it might be good to allow projects to contribute state to save and restore, rather than have this project know about everything
     implementation(project(":toolingApi"))
     implementation(project(":buildEvents"))
@@ -68,8 +72,6 @@ dependencies {
     testImplementation(testLibrary("mockito_kotlin2"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-debug:1.3.3")
 
-    testRuntimeOnly(project(":runtimeApiInfo"))
-
     integTestImplementation(project(":jvmServices"))
     integTestImplementation(project(":toolingApi"))
     integTestImplementation(project(":platformJvm"))
@@ -82,12 +84,15 @@ dependencies {
     integTestImplementation(testFixtures(project(":dependencyManagement")))
     integTestImplementation(testFixtures(project(":jacoco")))
 
-    integTestRuntimeOnly(project(":apiMetadata"))
-    integTestRuntimeOnly(project(":toolingApiBuilders"))
-    integTestRuntimeOnly(project(":runtimeApiInfo"))
-    integTestRuntimeOnly(project(":testingJunitPlatform"))
-    integTestRuntimeOnly(project(":kotlinDsl"))
-    integTestRuntimeOnly(project(":kotlinDslProviderPlugins"))
+    crossVersionTestImplementation(project(":cli"))
+
+    testRuntimeOnly(project(":distributionsCore")) {
+        because("Tests instantiate DefaultClassLoaderRegistry which requires a 'gradle-plugins.properties' through DefaultPluginModuleRegistry")
+    }
+    integTestDistributionRuntimeOnly(project(":distributionsJvm")) {
+        because("Includes tests for builds with TestKit involved; InstantExecutionJacocoIntegrationTest requires JVM distribution")
+    }
+    crossVersionTestDistributionRuntimeOnly(project(":distributionsCore"))
 }
 
 classycle {

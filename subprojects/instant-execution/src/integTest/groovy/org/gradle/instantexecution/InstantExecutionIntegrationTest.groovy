@@ -19,6 +19,7 @@ package org.gradle.instantexecution
 import com.google.common.collect.ImmutableList
 import com.google.common.collect.ImmutableMap
 import com.google.common.collect.ImmutableSet
+import org.gradle.api.file.ArchiveOperations
 import org.gradle.api.file.FileSystemOperations
 import org.gradle.api.model.ObjectFactory
 import org.gradle.initialization.LoadProjectsBuildOperationType
@@ -37,42 +38,18 @@ import javax.inject.Inject
 
 class InstantExecutionIntegrationTest extends AbstractInstantExecutionIntegrationTest {
 
-    def "--scan works"() {
-        given:
-        settingsKotlinFile << '''
-            plugins {
-                `gradle-enterprise`
-            }
-
-            gradleEnterprise.buildScan {
-                termsOfServiceUrl = "https://gradle.com/terms-of-service"
-                termsOfServiceAgree = "yes"
-            }
-        '''
-
-        when:
-        instantRun "help", "--scan", "-Dscan.dump"
-
-        then:
-        postBuildOutputContains("Build scan written to")
-
-        when:
-        instantRun "help", "--scan", "-Dscan.dump"
-
-        then:
-        postBuildOutputContains("Build scan written to")
-    }
-
     def "instant execution for help on empty project"() {
         given:
         instantRun "help"
         def firstRunOutput = removeVfsLogOutput(result.normalizedOutput)
             .replaceAll(/Calculating task graph as no configuration cache is available for tasks: help\n/, '')
+            .replaceAll(/Configuration cache entry stored.\n/, '')
 
         when:
         instantRun "help"
         def secondRunOutput = removeVfsLogOutput(result.normalizedOutput)
             .replaceAll(/Reusing configuration cache.\n/, '')
+            .replaceAll(/Configuration cache entry reused.\n/, '')
 
         then:
         firstRunOutput == secondRunOutput
@@ -92,7 +69,7 @@ class InstantExecutionIntegrationTest extends AbstractInstantExecutionIntegratio
         def fixture = newInstantExecutionFixture()
 
         when:
-        instantRun "help" , "-D${ConfigurationCacheRecreateOption.PROPERTY_NAME}=true"
+        instantRun "help", "-D${ConfigurationCacheRecreateOption.PROPERTY_NAME}=true"
 
         then:
         fixture.assertStateStored()
@@ -580,6 +557,7 @@ class InstantExecutionIntegrationTest extends AbstractInstantExecutionIntegratio
         ToolingModelBuilderRegistry.name | "project.services.get(${ToolingModelBuilderRegistry.name})" | "toString()"
         WorkerExecutor.name              | "project.services.get(${WorkerExecutor.name})"              | "noIsolation()"
         FileSystemOperations.name        | "project.services.get(${FileSystemOperations.name})"        | "toString()"
+        ArchiveOperations.name           | "project.services.get(${ArchiveOperations.name})"           | "toString()"
         ExecOperations.name              | "project.services.get(${ExecOperations.name})"              | "toString()"
         ListenerManager.name             | "project.services.get(${ListenerManager.name})"             | "toString()"
         JavaInstallationRegistry.name    | "project.services.get(${JavaInstallationRegistry.name})"    | "installationForCurrentVirtualMachine"
@@ -686,7 +664,7 @@ class InstantExecutionIntegrationTest extends AbstractInstantExecutionIntegratio
         """
 
         when:
-        instantFailsLenient "broken"
+        instantFails WARN_PROBLEMS_CLI_OPT, "broken"
 
         then:
         problems.assertResultHasProblems(result) {
@@ -932,7 +910,7 @@ class InstantExecutionIntegrationTest extends AbstractInstantExecutionIntegratio
     }
 
     @Unroll
-    def "restores task with action that is Java lambda"() {
+    def "restores task with action and spec that are Java lambdas"() {
         given:
         file("buildSrc/src/main/java/my/LambdaPlugin.java").tap {
             parentFile.mkdirs()
@@ -947,7 +925,11 @@ class InstantExecutionIntegrationTest extends AbstractInstantExecutionIntegratio
                         $type value = $expression;
                         project.getTasks().register("ok", task -> {
                             task.doLast(t -> {
-                                System.out.println(task.getName() + " value is " + value);
+                                System.out.println(task.getName() + " action value is " + value);
+                            });
+                            task.onlyIf(t -> {
+                                System.out.println(task.getName() + " spec value is " + value);
+                                return true;
                             });
                         });
                     }
@@ -964,7 +946,8 @@ class InstantExecutionIntegrationTest extends AbstractInstantExecutionIntegratio
         instantRun "ok"
 
         then:
-        outputContains("ok value is ${value}")
+        outputContains("ok action value is ${value}")
+        outputContains("ok spec value is ${value}")
 
         where:
         type      | expression | value

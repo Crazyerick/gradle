@@ -17,20 +17,15 @@
 package org.gradle.api.internal;
 
 import org.gradle.StartParameter;
-import org.gradle.initialization.StartParameterBuildOptions.ConfigurationCacheOption;
-import org.gradle.internal.deprecation.Deprecatable;
-import org.gradle.internal.deprecation.LoggingDeprecatable;
+import org.gradle.initialization.StartParameterBuildOptions.ConfigurationCacheProblemsOption;
 
 import java.io.File;
-import java.util.Set;
 
-public class StartParameterInternal extends StartParameter implements Deprecatable {
-
-    private final Deprecatable deprecationHandler = new LoggingDeprecatable();
-
+public class StartParameterInternal extends StartParameter {
     private boolean watchFileSystem;
 
-    private ConfigurationCacheOption.Value configurationCache = ConfigurationCacheOption.Value.OFF;
+    private boolean configurationCache;
+    private ConfigurationCacheProblemsOption.Value configurationCacheProblems = ConfigurationCacheProblemsOption.Value.FAIL;
     private int configurationCacheMaxProblems = 512;
     private boolean configurationCacheRecreateCache;
     private boolean configurationCacheQuiet;
@@ -50,25 +45,11 @@ public class StartParameterInternal extends StartParameter implements Deprecatab
         StartParameterInternal p = (StartParameterInternal) super.prepareNewBuild(startParameter);
         p.watchFileSystem = watchFileSystem;
         p.configurationCache = configurationCache;
+        p.configurationCacheProblems = configurationCacheProblems;
         p.configurationCacheMaxProblems = configurationCacheMaxProblems;
         p.configurationCacheRecreateCache = configurationCacheRecreateCache;
         p.configurationCacheQuiet = configurationCacheQuiet;
         return p;
-    }
-
-    @Override
-    public void addDeprecation(String deprecation) {
-        deprecationHandler.addDeprecation(deprecation);
-    }
-
-    @Override
-    public Set<String> getDeprecations() {
-        return deprecationHandler.getDeprecations();
-    }
-
-    @Override
-    public void checkDeprecation() {
-        deprecationHandler.checkDeprecation();
     }
 
     public File getGradleHomeDir() {
@@ -103,12 +84,20 @@ public class StartParameterInternal extends StartParameter implements Deprecatab
         this.watchFileSystem = watchFileSystem;
     }
 
-    public ConfigurationCacheOption.Value getConfigurationCache() {
+    public boolean isConfigurationCache() {
         return configurationCache;
     }
 
-    public void setConfigurationCache(ConfigurationCacheOption.Value configurationCache) {
+    public void setConfigurationCache(boolean configurationCache) {
         this.configurationCache = configurationCache;
+    }
+
+    public ConfigurationCacheProblemsOption.Value getConfigurationCacheProblems() {
+        return configurationCacheProblems;
+    }
+
+    public void setConfigurationCacheProblems(ConfigurationCacheProblemsOption.Value configurationCacheProblems) {
+        this.configurationCacheProblems = configurationCacheProblems;
     }
 
     public int getConfigurationCacheMaxProblems() {

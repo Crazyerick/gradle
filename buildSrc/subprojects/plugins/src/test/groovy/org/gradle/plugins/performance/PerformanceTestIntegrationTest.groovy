@@ -5,11 +5,16 @@ class PerformanceTestIntegrationTest extends AbstractIntegrationTest {
         buildFile << """
             plugins {
                 id 'java-library'
-                id 'gradlebuild.performance-test'
+                id 'gradlebuild.build-version'
+            }
+            ext {
+                libraries = ['junit5_vintage': [coordinates: 'org.junit.vintage:junit-vintage-engine', version: '5.6.2']]
             }
             subprojects {
                 apply plugin: 'java'
             }
+            apply plugin: 'gradlebuild.performance-test'
+
             def distributedPerformanceTests = tasks.withType(org.gradle.testing.DistributedPerformanceTest)
             distributedPerformanceTests.all {
                 // resolve these tasks
@@ -23,8 +28,9 @@ class PerformanceTestIntegrationTest extends AbstractIntegrationTest {
             }
         """
 
+        file("version.txt") << '6.5'
         settingsFile << """
-            include 'internalPerformanceTesting', 'docs', 'launcher', 'apiMetadata'
+            include 'internalIntegTesting', 'internalPerformanceTesting', 'docs', 'launcher', 'apiMetadata', 'distributionsFull'
         """
         expect:
         build("assertChannel")

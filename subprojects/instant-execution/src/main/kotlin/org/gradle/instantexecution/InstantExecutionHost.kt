@@ -29,7 +29,7 @@ import org.gradle.api.internal.project.ProjectInternal
 import org.gradle.api.internal.project.ProjectStateRegistry
 import org.gradle.configuration.project.ConfigureProjectBuildOperationType
 import org.gradle.execution.plan.Node
-import org.gradle.groovy.scripts.StringScriptSource
+import org.gradle.groovy.scripts.TextResourceScriptSource
 import org.gradle.initialization.BuildLoader
 import org.gradle.initialization.BuildOperatingFiringSettingsPreparer
 import org.gradle.initialization.BuildOperatingFiringTaskExecutionPreparer
@@ -52,6 +52,7 @@ import org.gradle.internal.operations.BuildOperationDescriptor
 import org.gradle.internal.operations.BuildOperationExecutor
 import org.gradle.internal.operations.RunnableBuildOperation
 import org.gradle.internal.reflect.Instantiator
+import org.gradle.internal.resource.StringTextResource
 import org.gradle.internal.service.scopes.BuildScopeServiceRegistryFactory
 import org.gradle.plugin.management.internal.autoapply.AutoAppliedPluginRegistry
 import org.gradle.plugin.use.internal.PluginRequestApplicator
@@ -97,6 +98,8 @@ class InstantExecutionHost internal constructor(
         private val fileResolver: PathToFileResolver,
         private val rootProjectName: String
     ) : InstantExecutionBuild {
+        private
+        val buildDirs = mutableMapOf<Path, File>()
 
         init {
             gradle.run {
@@ -117,7 +120,7 @@ class InstantExecutionHost internal constructor(
             }
         }
 
-        override fun createProject(path: String, dir: File) {
+        override fun createProject(path: String, dir: File, buildDir: File) {
             val projectPath = Path.path(path)
             val name = projectPath.name
             val projectDescriptor = DefaultProjectDescriptor(
@@ -128,6 +131,7 @@ class InstantExecutionHost internal constructor(
                 fileResolver
             )
             projectDescriptorRegistry.addProject(projectDescriptor)
+            buildDirs[projectPath] = buildDir
         }
 
         override fun registerProjects() {
@@ -160,6 +164,8 @@ class InstantExecutionHost internal constructor(
         private
         fun createProject(descriptor: ProjectDescriptor, parent: ProjectInternal?): ProjectInternal {
             val project = projectFactory.createProject(gradle, descriptor, parent, coreAndPluginsScope, coreAndPluginsScope)
+            // Build dir is restored in order to use the correct workspace directory for transforms of project dependencies when the build dir has been customized
+            buildDirs.get(project.identityPath)?.let { project.setBuildDir(it) }
             for (child in descriptor.children) {
                 createProject(child, project)
             }
@@ -211,7 +217,7 @@ class InstantExecutionHost internal constructor(
         fun createSettings(): SettingsInternal {
             val baseClassLoaderScope = gradle.classLoaderScope
             val classLoaderScope = baseClassLoaderScope.createChild("settings")
-            return StringScriptSource("settings", "").let { settingsSource ->
+            return TextResourceScriptSource(StringTextResource("settings", "")).let { settingsSource ->
                 service<Instantiator>().newInstance(
                     DefaultSettings::class.java,
                     service<BuildScopeServiceRegistryFactory>(),

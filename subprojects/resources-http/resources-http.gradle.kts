@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 plugins {
-    gradlebuild.distribution.`plugins-api-java`
+    gradlebuild.distribution.`api-java`
 }
 
 dependencies {
@@ -22,6 +22,7 @@ dependencies {
     implementation(project(":baseServices"))
     implementation(project(":coreApi"))
     implementation(project(":core"))
+    implementation(project(":modelCore"))
     implementation(project(":logging"))
 
     implementation(library("commons_httpclient"))
@@ -41,8 +42,8 @@ dependencies {
 
     testFixturesImplementation(project(":baseServices"))
     testFixturesImplementation(project(":logging"))
-    testFixturesImplementation(project(":internalTesting"))
     testFixturesImplementation(project(":internalIntegTesting"))
     testFixturesImplementation(library("slf4j_api"))
-    integTestRuntimeOnly(project(":runtimeApiInfo"))
+
+    integTestDistributionRuntimeOnly(project(":distributionsCore"))
 }

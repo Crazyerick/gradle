@@ -15,6 +15,7 @@
  */
 package org.gradle.integtests.fixtures
 
+import org.eclipse.jgit.api.Git
 import org.gradle.api.Action
 import org.gradle.integtests.fixtures.build.BuildTestFile
 import org.gradle.integtests.fixtures.build.BuildTestFixture
@@ -109,6 +110,18 @@ class AbstractIntegrationSpec extends Specification {
 
     GradleExecuter createExecuter() {
         new GradleContextualExecuter(distribution, temporaryFolder, getBuildContext())
+    }
+
+    /**
+     * Some integration tests need to run git commands in test directory,
+     * but distributed-test-remote-executor has no .git directory so we init a "dummy .git dir".
+     */
+    void initGitDir() {
+        Git.init().setDirectory(testDirectory).call().withCloseable { Git git ->
+            testDirectory.file('initial-commit').createNewFile()
+            git.add().addFilepattern("initial-commit").call()
+            git.commit().setMessage("Initial commit").call()
+        }
     }
 
     TestFile getBuildFile() {
@@ -232,11 +245,6 @@ class AbstractIntegrationSpec extends Specification {
         executer
     }
 
-    protected GradleExecuter requireGradleDistribution() {
-        executer.requireGradleDistribution()
-        executer
-    }
-
     /**
      * This is expensive as it creates a complete copy of the distribution inside the test directory.
      * Only use this for testing custom modifications of a distribution.
@@ -246,7 +254,6 @@ class AbstractIntegrationSpec extends Specification {
         getBuildContext().gradleHomeDir.copyTo(isolatedGradleHomeDir)
         distribution = new UnderDevelopmentGradleDistribution(getBuildContext(), isolatedGradleHomeDir)
         recreateExecuter()
-        executer.requireGradleDistribution()
         executer.requireIsolatedDaemons() //otherwise we might connect to a running daemon from the original installation location
         executer
     }

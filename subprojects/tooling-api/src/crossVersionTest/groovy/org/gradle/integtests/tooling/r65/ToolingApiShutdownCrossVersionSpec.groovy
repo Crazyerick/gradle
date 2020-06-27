@@ -25,6 +25,7 @@ import org.gradle.tooling.GradleConnector
 import org.gradle.tooling.ProjectConnection
 import org.gradle.tooling.model.GradleProject
 import org.gradle.tooling.model.eclipse.EclipseProject
+import spock.lang.Ignore
 import spock.util.concurrent.PollingConditions
 
 @ToolingApiVersion(">=6.5")
@@ -67,6 +68,7 @@ class ToolingApiShutdownCrossVersionSpec extends CancellationSpec {
     }
 
     @TargetGradleVersion(">=6.5")
+    @Ignore('https://github.com/gradle/gradle-private/issues/3107')
     def "disconnect during tooling model query stops daemon"() {
         setup:
         buildFile << """
@@ -175,6 +177,7 @@ class ToolingApiShutdownCrossVersionSpec extends CancellationSpec {
         assertNoRunningDaemons()
     }
 
+    @Ignore
     def "can call disconnect after the build was cancelled"() {
         buildFile << """
             task hang {
@@ -261,6 +264,7 @@ class ToolingApiShutdownCrossVersionSpec extends CancellationSpec {
         resultHandler.assertFailedWith(BuildCancelledException)
     }
 
+    @Ignore('https://github.com/gradle/gradle-private/issues/3107')
     def "can call disconnect after project connection closed"() {
         buildFile << """
             task myTask {
@@ -282,6 +286,7 @@ class ToolingApiShutdownCrossVersionSpec extends CancellationSpec {
         noExceptionThrown()
     }
 
+    @Ignore('https://github.com/gradle/gradle-private/issues/3107')
     def "can call disconnect before project connection closed"() {
         buildFile << """
             task hang {

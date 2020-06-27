@@ -25,14 +25,18 @@ private
 data class UniquePropertyProblem(val property: String, val message: StructuredMessage, val documentationSection: String?)
 
 
+private
+const val maxConsoleProblems = 15
+
+
 internal
-fun buildConsoleSummary(problems: List<PropertyProblem>, reportFile: File): String {
+fun buildConsoleSummary(cacheAction: String, problems: List<PropertyProblem>, reportFile: File): String {
     val documentationRegistry = DocumentationRegistry()
     val uniquePropertyProblems = uniquePropertyProblems(problems)
     return StringBuilder().apply {
         appendln()
-        appendln(buildSummaryHeader(problems.size, uniquePropertyProblems))
-        uniquePropertyProblems.forEach { problem ->
+        appendln(buildSummaryHeader(cacheAction, problems.size, uniquePropertyProblems))
+        uniquePropertyProblems.take(maxConsoleProblems).forEach { problem ->
             append("- ")
             append(problem.property)
             append(": ")
@@ -40,6 +44,9 @@ fun buildConsoleSummary(problems: List<PropertyProblem>, reportFile: File): Stri
             if (problem.documentationSection != null) {
                 appendln("  See ${documentationRegistry.getDocumentationFor("configuration_cache", problem.documentationSection)}")
             }
+        }
+        if (uniquePropertyProblems.size > maxConsoleProblems) {
+            appendln("plus ${uniquePropertyProblems.size - maxConsoleProblems} more problems. Please see the report for details.")
         }
         appendln()
         append(buildSummaryReportLink(reportFile))
@@ -55,11 +62,16 @@ fun uniquePropertyProblems(problems: List<PropertyProblem>): Set<UniquePropertyP
 
 
 private
-fun buildSummaryHeader(totalProblemCount: Int, uniquePropertyProblems: Set<UniquePropertyProblem>): String {
+fun buildSummaryHeader(
+    cacheAction: String,
+    totalProblemCount: Int,
+    uniquePropertyProblems: Set<UniquePropertyProblem>
+): String {
     val result = StringBuilder()
     result.append(totalProblemCount)
-    result.append(" configuration cache ")
-    result.append(if (totalProblemCount == 1) "problem was found" else "problems were found")
+    result.append(if (totalProblemCount == 1) " problem was found " else " problems were found ")
+    result.append(cacheAction)
+    result.append(" the configuration cache")
     val uniqueProblemCount = uniquePropertyProblems.size
     if (totalProblemCount != uniquePropertyProblems.size) {
         result.append(", ")

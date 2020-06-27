@@ -19,27 +19,37 @@ package org.gradle.instantexecution.serialization.codecs.transform
 import org.gradle.api.internal.artifacts.transform.ArtifactTransformListener
 import org.gradle.api.internal.artifacts.transform.TransformationNode
 import org.gradle.api.internal.artifacts.transform.TransformationStep
+import org.gradle.instantexecution.serialization.Codec
 import org.gradle.instantexecution.serialization.ReadContext
 import org.gradle.instantexecution.serialization.WriteContext
+import org.gradle.instantexecution.serialization.readNonNull
+import org.gradle.instantexecution.serialization.withCodec
 import org.gradle.internal.operations.BuildOperationExecutor
 
 
 internal
 class ChainedTransformationNodeCodec(
+    private val userTypesCodec: Codec<Any?>,
     private val buildOperationExecutor: BuildOperationExecutor,
     private val transformListener: ArtifactTransformListener
 ) : AbstractTransformationNodeCodec<TransformationNode.ChainedTransformationNode>() {
 
     override suspend fun WriteContext.doEncode(value: TransformationNode.ChainedTransformationNode) {
-        write(value.transformationStep)
-        writeDependenciesResolver(value)
+        withCodec(userTypesCodec) {
+            write(value.transformationStep)
+            write(transformDependencies(value))
+        }
         write(value.previousTransformationNode)
     }
 
     override suspend fun ReadContext.doDecode(): TransformationNode.ChainedTransformationNode {
-        val transformationStep = read() as TransformationStep
-        val resolver = readDependenciesResolver()
-        val previousStep = read() as TransformationNode
+        val transformationStep = withCodec(userTypesCodec) {
+            readNonNull<TransformationStep>()
+        }
+        val resolver = withCodec(userTypesCodec) {
+            (read() as TransformDependencies).recreate()
+        }
+        val previousStep = readNonNull<TransformationNode>()
         return TransformationNode.chained(transformationStep, previousStep, resolver, buildOperationExecutor, transformListener)
     }
 }

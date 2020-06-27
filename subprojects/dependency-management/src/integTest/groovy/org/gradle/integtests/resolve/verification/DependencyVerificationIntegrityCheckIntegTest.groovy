@@ -16,7 +16,6 @@
 
 package org.gradle.integtests.resolve.verification
 
-
 import org.gradle.api.internal.artifacts.ivyservice.CacheLayout
 import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
 import org.gradle.integtests.fixtures.cache.CachingIntegrationFixture

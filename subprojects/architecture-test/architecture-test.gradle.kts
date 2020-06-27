@@ -2,10 +2,7 @@ import org.gradle.gradlebuild.PublicApi
 
 plugins {
     gradlebuild.internal.java
-}
-
-configurations {
-    testRuntimeClasspath.get().extendsFrom(fullGradleRuntimeClasspath.get())
+    gradlebuild.`binary-compatibility`
 }
 
 dependencies {
@@ -14,9 +11,11 @@ dependencies {
 
     testImplementation(testLibrary("archunit_junit4"))
     testImplementation(library("guava"))
+
+    testRuntimeOnly(project(":distributionsFull"))
 }
 
-tasks.withType<Test> {
+tasks.withType<Test>().configureEach {
     // Looks like loading all the classes requires more than the default 512M
     maxHeapSize = "700M"
 

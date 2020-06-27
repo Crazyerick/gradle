@@ -107,7 +107,7 @@ image::commandLineTutorialTasks.png[]
 .Excluding tasks
 ----
 $ gradle dist --exclude-task test
-include::{snippetsPath}/tutorial/excludeTasks/tests/excludeTask.out
+include::{snippetsPath}/tutorial/excludeTasks/tests/excludeTask.out[]
 ----
 
 You can see that the `test` task is not executed, even though it is a dependency of the `dist` task. The `test` task's dependencies such as `compileTest` are not executed either. Those dependencies of `test` that are required by another task, such as `compile`, are still executed.
@@ -145,7 +145,7 @@ You can also abbreviate each word in a camel case task name. For example, you ca
 .Abbreviated camel case task name
 ----
 $ gradle cT
-include::{snippetsPath}/tutorial/excludeTasks/tests/abbreviateCamelCaseTaskName.out
+include::{snippetsPath}/tutorial/excludeTasks/tests/abbreviateCamelCaseTaskName.out[]
 ----
 
 You can also use these abbreviations with the -x command-line option.
@@ -232,7 +232,7 @@ Running `gradle help --task someTask` gives you detailed information about a spe
 .Obtaining detailed help for tasks
 ----
 $ gradle -q help --task libs
-include::{snippetsPath}/tutorial/projectReports/tests/taskHelp.out
+include::{snippetsPath}/tutorial/projectReports/tests/taskHelp.out[]
 ----
 
 This information includes the full task path, the task type, possible command line options and the description of the given task.
@@ -283,7 +283,7 @@ Running `gradle properties` gives you a list of the properties of the selected p
 .Information about properties
 ----
 $ gradle -q api:properties
-include::{snippetsPath}/tutorial/projectReports/tests/propertyListReport.out
+include::{snippetsPath}/tutorial/projectReports/tests/propertyListReport.out[]
 ----
 
 === Software Model reports
@@ -359,8 +359,8 @@ Generate a build scan with detailed performance diagnostics.
 image::gradle-core-test-build-scan-performance.png[Build Scan performance report]
 
 `--watch-fs`, `--no-watch-fs`::
-Toggles <<gradle_daemon.adoc#sec:daemon_watch_fs,watching the file-system>>.
-Allows Gradle to re-use information about the file-system in the next build.
+Toggles <<gradle_daemon.adoc#sec:daemon_watch_fs,watching the file system>>.
+Allows Gradle to re-use information about the file system in the next build.
 _Default is off_.
 
 === Gradle daemon options
@@ -513,7 +513,7 @@ Sets a system property of the JVM, for example `-Dmyprop=myvalue`. See <<build_e
 Specifies an initialization script. See <<init_scripts.adoc#init_scripts,Init Scripts>>.
 
 `-P`, `--project-prop`::
-Sets a project property of the root project, for example `-Pmyprop=myvalue`. See <<build_environment.adoc#sec:project_properties,System Properties>>.
+Sets a project property of the root project, for example `-Pmyprop=myvalue`. See <<build_environment.adoc#sec:project_properties,Project Properties>>.
 
 `-Dorg.gradle.jvmargs`::
 Set JVM arguments.
@@ -586,11 +586,11 @@ Due to class access restrictions related to Java 9, Gradle cannot set some opera
 [[sec:performance_and_stability]]
 ==== Performance and stability
 
-The JDK file watching facility relies on inefficient file-system polling on macOS (see: https://bugs.openjdk.java.net/browse/JDK-7133447[JDK-7133447]). This can significantly delay notification of changes on large projects with many source files.
+The JDK file watching facility relies on inefficient file system polling on macOS (see: https://bugs.openjdk.java.net/browse/JDK-7133447[JDK-7133447]). This can significantly delay notification of changes on large projects with many source files.
 
 Additionally, the watching mechanism may deadlock under _heavy_ load on macOS (see: https://bugs.openjdk.java.net/browse/JDK-8079620[JDK-8079620]). This will manifest as Gradle appearing not to notice file changes. If you suspect this is occurring, exit continuous build and start again.
 
-On Linux, OpenJDK's implementation of the file watch service can sometimes miss file-system events (see: https://bugs.openjdk.java.net/browse/JDK-8145981[JDK-8145981]).
+On Linux, OpenJDK's implementation of the file watch service can sometimes miss file system events (see: https://bugs.openjdk.java.net/browse/JDK-8145981[JDK-8145981]).
 
 [[sec:changes_to_symbolic_links]]
 ==== Changes to symbolic links

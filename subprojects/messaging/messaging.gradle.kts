@@ -1,5 +1,5 @@
 plugins {
-    gradlebuild.distribution.`core-api-java`
+    gradlebuild.distribution.`api-java`
 }
 
 gradlebuildJava.usedInWorkers()
@@ -17,5 +17,5 @@ dependencies {
     testFixturesImplementation(project(":baseServices"))
     testFixturesImplementation(library("slf4j_api"))
 
-    integTestRuntimeOnly(project(":runtimeApiInfo"))
+    integTestDistributionRuntimeOnly(project(":distributionsCore"))
 }

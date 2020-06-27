@@ -66,6 +66,7 @@ class EdgeState implements DependencyGraphEdge {
     private ExcludeSpec cachedExclusions;
 
     private ResolvedVariantResult resolvedVariant;
+    private boolean unattached;
 
     EdgeState(NodeState from, DependencyState dependencyState, ExcludeSpec transitiveExclusions, ResolveState resolveState) {
         this.from = from;
@@ -140,7 +141,7 @@ class EdgeState implements DependencyGraphEdge {
             if (module.isPending()) {
                 selector.getTargetModule().removeUnattachedDependency(this);
                 from.makePending(this);
-                module.addPendingNode(from);
+                module.registerConstraintProvider(from);
                 return;
             }
         }
@@ -181,9 +182,13 @@ class EdgeState implements DependencyGraphEdge {
         targetNodeSelectionFailure = new ModuleVersionResolveException(dependencyState.getRequested(), err);
     }
 
-    public void restart() {
+    public void restart(boolean checkUnattached) {
         if (from.isSelected()) {
             removeFromTargetConfigurations();
+            // We now have corner cases that can lead to this restart not succeeding
+            if (checkUnattached && !isUnattached()) {
+                selector.getTargetModule().addUnattachedDependency(this);
+            }
             attachToTargetConfigurations();
         }
     }
@@ -196,7 +201,7 @@ class EdgeState implements DependencyGraphEdge {
 
     private ImmutableAttributes safeGetAttributes() throws AttributeMergingException {
         ModuleResolveState module = selector.getTargetModule();
-        cachedAttributes = module.mergedConstraintsAttributes(dependencyState.getRequested().getAttributes());
+        cachedAttributes = module.mergedConstraintsAttributes(dependencyState.getDependency().getSelector().getAttributes());
         return cachedAttributes;
     }
 
@@ -245,7 +250,7 @@ class EdgeState implements DependencyGraphEdge {
         try {
             ImmutableAttributes attributes = resolveState.getRoot().getMetadata().getAttributes();
             attributes = resolveState.getAttributesFactory().concat(attributes, safeGetAttributes());
-            targetConfigurations = dependencyMetadata.selectConfigurations(attributes, targetModuleVersion, resolveState.getAttributesSchema(), dependencyState.getRequested().getRequestedCapabilities());
+            targetConfigurations = dependencyMetadata.selectConfigurations(attributes, targetModuleVersion, resolveState.getAttributesSchema(), dependencyState.getDependency().getSelector().getRequestedCapabilities());
         } catch (AttributeMergingException mergeError) {
             targetNodeSelectionFailure = new ModuleVersionResolveException(dependencyState.getRequested(), () -> {
                 Attribute<?> attribute = mergeError.getAttribute();
@@ -429,5 +434,17 @@ class EdgeState implements DependencyGraphEdge {
         for (NodeState targetNode : targetNodes) {
             targetNode.updateTransitiveExcludes();
         }
+    }
+
+    public void markUnattached() {
+        this.unattached = true;
+    }
+
+    public void markAttached() {
+        this.unattached = false;
+    }
+
+    public boolean isUnattached() {
+        return unattached;
     }
 }

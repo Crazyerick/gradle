@@ -17,10 +17,11 @@
 package org.gradle.instantexecution
 
 import org.gradle.api.InvalidUserCodeException
+import org.gradle.configuration.internal.UserCodeApplicationContext
 import org.gradle.instantexecution.problems.InstantExecutionProblems
 import org.gradle.instantexecution.problems.PropertyProblem
-import org.gradle.instantexecution.problems.PropertyTrace
 import org.gradle.instantexecution.problems.StructuredMessage
+import org.gradle.instantexecution.problems.location
 import org.gradle.instantexecution.serialization.Workarounds
 import org.gradle.internal.classpath.Instrumented
 import org.gradle.internal.event.ListenerManager
@@ -32,18 +33,38 @@ val whitelistedProperties = setOf(
     "os.version",
     "os.arch",
     "java.version",
-    "java.vm.version",
-    "java.runtime.version",
+    "java.version.date",
+    "java.vendor",
+    "java.vendor.url",
+    "java.vendor.version",
     "java.specification.version",
+    "java.specification.vendor",
+    "java.specification.name",
+    "java.vm.version",
+    "java.vm.specification.version",
+    "java.vm.specification.vendor",
+    "java.vm.specification.name",
+    "java.vm.version",
+    "java.vm.vendor",
+    "java.vm.name",
+    "java.class.version",
     "java.home",
+    "java.class.path",
+    "java.library.path",
+    "java.compiler",
+    "file.separator",
+    "path.separator",
     "line.separator",
     "user.name",
-    "user.home"
+    "user.home",
+    "java.runtime.version"
+    // Not java.io.tmpdir and user.dir at this stage
 )
 
 
 class SystemPropertyAccessListener(
     private val problems: InstantExecutionProblems,
+    private val userCodeContext: UserCodeApplicationContext,
     listenerManager: ListenerManager
 ) : Instrumented.Listener {
     private
@@ -65,10 +86,16 @@ class SystemPropertyAccessListener(
         val message = StructuredMessage.build {
             text("read system property ")
             reference(key)
-            text(" from class ")
-            reference(consumer)
         }
+        val location = userCodeContext.location(consumer)
         val exception = InvalidUserCodeException(message.toString().capitalize())
-        problems.onProblem(PropertyProblem(PropertyTrace.Unknown, message, exception, "undeclared_sys_prop_read"))
+        problems.onProblem(
+            PropertyProblem(
+                location,
+                message,
+                exception,
+                documentationSection = "config_cache:requirements:undeclared_sys_prop_read"
+            )
+        )
     }
 }

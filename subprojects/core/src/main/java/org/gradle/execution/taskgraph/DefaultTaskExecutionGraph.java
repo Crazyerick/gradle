@@ -27,8 +27,8 @@ import org.gradle.api.execution.TaskExecutionAdapter;
 import org.gradle.api.execution.TaskExecutionGraph;
 import org.gradle.api.execution.TaskExecutionGraphListener;
 import org.gradle.api.execution.TaskExecutionListener;
+import org.gradle.api.internal.BuildScopeListenerRegistrationListener;
 import org.gradle.api.internal.GradleInternal;
-import org.gradle.api.internal.project.ProjectInternal;
 import org.gradle.api.internal.project.ProjectStateRegistry;
 import org.gradle.api.internal.tasks.NodeExecutionContext;
 import org.gradle.api.specs.Spec;
@@ -79,6 +79,7 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
     private final GradleInternal gradleInternal;
     private final ListenerBroadcast<TaskExecutionGraphListener> graphListeners;
     private final ListenerBroadcast<TaskExecutionListener> taskListeners;
+    private final BuildScopeListenerRegistrationListener buildScopeListenerRegistrationListener;
     private final ProjectStateRegistry projectStateRegistry;
     private final ServiceRegistry globalServices;
     private final DefaultExecutionPlan executionPlan;
@@ -101,6 +102,7 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
         TaskDependencyResolver dependencyResolver,
         ListenerBroadcast<TaskExecutionGraphListener> graphListeners,
         ListenerBroadcast<TaskExecutionListener> taskListeners,
+        BuildScopeListenerRegistrationListener buildScopeListenerRegistrationListener,
         ProjectStateRegistry projectStateRegistry,
         ServiceRegistry globalServices
     ) {
@@ -112,6 +114,7 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
         this.gradleInternal = gradleInternal;
         this.graphListeners = graphListeners;
         this.taskListeners = taskListeners;
+        this.buildScopeListenerRegistrationListener = buildScopeListenerRegistrationListener;
         this.projectStateRegistry = projectStateRegistry;
         this.globalServices = globalServices;
         this.executionPlan = new DefaultExecutionPlan(gradleInternal, taskNodeFactory, dependencyResolver);
@@ -215,6 +218,7 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
 
     @Override
     public void addTaskExecutionListener(TaskExecutionListener listener) {
+        notifyListenerRegistration("TaskExecutionGraph.addTaskExecutionListener", listener);
         taskListeners.add(listener);
     }
 
@@ -225,11 +229,13 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
 
     @Override
     public void beforeTask(final Closure closure) {
+        notifyListenerRegistration("TaskExecutionGraph.beforeTask", closure);
         taskListeners.add(new ClosureBackedMethodInvocationDispatch("beforeExecute", closure));
     }
 
     @Override
     public void beforeTask(final Action<Task> action) {
+        notifyListenerRegistration("TaskExecutionGraph.beforeTask", action);
         taskListeners.add(new TaskExecutionAdapter() {
             @Override
             public void beforeExecute(Task task) {
@@ -240,17 +246,27 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
 
     @Override
     public void afterTask(final Closure closure) {
+        notifyListenerRegistration("TaskExecutionGraph.afterTask", closure);
         taskListeners.add(new ClosureBackedMethodInvocationDispatch("afterExecute", closure));
     }
 
     @Override
     public void afterTask(final Action<Task> action) {
+        notifyListenerRegistration("TaskExecutionGraph.afterTask", action);
         taskListeners.add(new TaskExecutionAdapter() {
             @Override
             public void afterExecute(Task task, TaskState state) {
                 action.execute(task);
             }
         });
+    }
+
+    private void notifyListenerRegistration(String registrationPoint, Object listener) {
+        buildScopeListenerRegistrationListener.onBuildScopeListenerRegistration(
+            listener,
+            registrationPoint,
+            this
+        );
     }
 
     @Override
@@ -351,7 +367,7 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
 
         @Override
         public void execute(Node node) {
-            NodeExecutionContext context = projectExecutionServices.forProject((ProjectInternal) node.getOwningProject());
+            NodeExecutionContext context = projectExecutionServices.forProject(node.getOwningProject());
             for (NodeExecutor nodeExecutor : nodeExecutors) {
                 if (nodeExecutor.execute(node, context)) {
                     return;

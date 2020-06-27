@@ -40,6 +40,7 @@ external val configurationCacheProblems: () -> JsModel
 
 private
 external interface JsModel {
+    val cacheAction: String
     val documentationLink: String
     val problems: Array<JsProblem>
 }
@@ -112,6 +113,7 @@ fun reportPageModelFromJsModel(jsModel: JsModel): InstantExecutionReportPage.Mod
         )
     }
     return InstantExecutionReportPage.Model(
+        cacheAction = jsModel.cacheAction,
         documentationLink = jsModel.documentationLink,
         totalProblems = jsModel.problems.size,
         messageTree = treeModelFor(
@@ -168,6 +170,7 @@ fun toPrettyText(message: Array<JsMessageFragment>) = PrettyText(
     }
 )
 
+
 private
 fun toProblemNode(trace: JsTrace): ProblemNode = when (trace.kind) {
     "Task" -> trace.unsafeCast<JsTraceTask>().run {
@@ -214,7 +217,7 @@ fun exceptionNodeFor(it: JsProblem): ProblemNode? =
 
 private
 fun docLinkFor(it: JsProblem): ProblemNode? =
-    it.documentationLink?.let { ProblemNode.Link(it, "more info") }
+    it.documentationLink?.let { ProblemNode.Link(it, " ?") }
 
 
 private

@@ -39,6 +39,8 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -54,6 +56,7 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
     private final DelegatingDiffCapturingUpdateFunctionDecorator delegatingUpdateFunctionDecorator;
     private final AtomicReference<FileHierarchySet> producedByCurrentBuild = new AtomicReference<>(DefaultFileHierarchySet.of());
     private final Predicate<String> watchFilter;
+    private final Set<File> rootProjectDirectoriesForWatching = new HashSet<>();
 
     private FileWatcherRegistry watchRegistry;
 
@@ -103,23 +106,32 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
                 noWatchRegistry.run();
                 return currentRoot;
             }
-            return handleWatcherChangeErrors(currentRoot, () -> updateFunction.accept(watchRegistry));
+            return withWatcherChangeErrorHandling(currentRoot, () -> updateFunction.accept(watchRegistry));
         });
     }
 
     @Override
-    public void updateProjectRootDirectory(File projectRootDirectory) {
-        updateWatchRegistry(watchRegistry -> watchRegistry.getFileWatcherUpdater().updateProjectRootDirectory(projectRootDirectory));
+    public void buildRootDirectoryAdded(File buildRootDirectory) {
+        synchronized (rootProjectDirectoriesForWatching) {
+            rootProjectDirectoriesForWatching.add(buildRootDirectory);
+            updateWatchRegistry(watchRegistry -> watchRegistry.getFileWatcherUpdater().updateRootProjectDirectories(rootProjectDirectoriesForWatching));
+        }
     }
 
     @Override
     public void beforeBuildFinished(boolean watchingEnabled) {
+        synchronized (rootProjectDirectoriesForWatching) {
+            rootProjectDirectoriesForWatching.clear();
+        }
         if (watchingEnabled) {
             getRoot().update(currentRoot -> {
                 buildRunning = false;
                 producedByCurrentBuild.set(DefaultFileHierarchySet.of());
                 SnapshotHierarchy newRoot = removeSymbolicLinks(currentRoot);
                 newRoot = handleWatcherRegistryEvents(newRoot, "for current build");
+                if (watchRegistry != null) {
+                    newRoot = withWatcherChangeErrorHandling(newRoot, () -> watchRegistry.getFileWatcherUpdater().buildFinished());
+                }
                 printStatistics(newRoot, "retains", "till next build");
                 return newRoot;
             });
@@ -161,7 +173,7 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
                             getRoot().update(root -> {
                                 SnapshotCollectingDiffListener diffListener = new SnapshotCollectingDiffListener(watchFilter);
                                 SnapshotHierarchy newRoot = root.invalidate(absolutePath, diffListener);
-                                return handleWatcherChangeErrors(
+                                return withWatcherChangeErrorHandling(
                                     newRoot,
                                     () -> diffListener.publishSnapshotDiff(snapshotDiffListener)
                                 );
@@ -179,7 +191,8 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
                     stopWatchingAndInvalidateHierarchy();
                 }
             });
-            delegatingUpdateFunctionDecorator.setSnapshotDiffListener(snapshotDiffListener, this::handleWatcherChangeErrors);
+            watchRegistry.getFileWatcherUpdater().updateRootProjectDirectories(rootProjectDirectoriesForWatching);
+            delegatingUpdateFunctionDecorator.setSnapshotDiffListener(snapshotDiffListener, this::withWatcherChangeErrorHandling);
             long endTime = System.currentTimeMillis() - startTime;
             LOGGER.warn("Spent {} ms registering watches for file system events", endTime);
             // TODO: Move start watching early enough so that the root is always empty
@@ -191,7 +204,7 @@ public class WatchingVirtualFileSystem extends AbstractDelegatingVirtualFileSyst
         }
     }
 
-    private SnapshotHierarchy handleWatcherChangeErrors(SnapshotHierarchy currentRoot, Runnable runnable) {
+    private SnapshotHierarchy withWatcherChangeErrorHandling(SnapshotHierarchy currentRoot, Runnable runnable) {
         try {
             runnable.run();
             return currentRoot;

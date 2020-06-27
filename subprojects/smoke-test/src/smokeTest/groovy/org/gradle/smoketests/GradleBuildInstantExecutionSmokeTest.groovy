@@ -19,6 +19,7 @@ package org.gradle.smoketests
 import org.gradle.api.JavaVersion
 import org.gradle.api.specs.Spec
 import org.gradle.initialization.StartParameterBuildOptions.ConfigurationCacheOption
+import org.gradle.initialization.StartParameterBuildOptions.ConfigurationCacheProblemsOption
 import org.gradle.integtests.fixtures.AvailableJavaHomes
 import org.gradle.integtests.fixtures.DefaultTestExecutionResult
 import org.gradle.integtests.fixtures.executer.GradleContextualExecuter
@@ -64,8 +65,9 @@ class GradleBuildInstantExecutionSmokeTest extends AbstractSmokeTest {
 
         and:
         def supportedTasks = [
-            ":distributions:binZip",
-            ":core:integTest", "--tests=NameValidationIntegrationTest"
+            ":distributionsFull:binDistributionZip",
+            ":core:embeddedIntegTest", "--tests=NameValidationIntegrationTest",
+            ":toolingApi:publishLocalPublicationToLocalRepository"
         ]
 
         when:
@@ -79,8 +81,9 @@ class GradleBuildInstantExecutionSmokeTest extends AbstractSmokeTest {
 
         then:
         result.output.count("Reusing configuration cache") == 1
-        result.task(":distributions:binZip").outcome == TaskOutcome.UP_TO_DATE
-        result.task(":core:integTest").outcome == TaskOutcome.UP_TO_DATE
+        result.task(":distributionsFull:binDistributionZip").outcome == TaskOutcome.UP_TO_DATE
+        result.task(":core:embeddedIntegTest").outcome == TaskOutcome.UP_TO_DATE
+        result.task(":toolingApi:publishLocalPublicationToLocalRepository").outcome == TaskOutcome.SUCCESS
 
         when:
         run("clean")
@@ -92,15 +95,16 @@ class GradleBuildInstantExecutionSmokeTest extends AbstractSmokeTest {
         result.output.count("Reusing configuration cache") == 1
 
         and:
-        file("build/distributions").allDescendants().count { it ==~ /gradle-.*-bin.zip/ } == 1
-        result.task(":core:integTest").outcome == TaskOutcome.SUCCESS
-        new DefaultTestExecutionResult(file("subprojects/core"), "build", "", "", "integTest")
+        file("subprojects/distributions-full/build/distributions").allDescendants().count { it ==~ /gradle-.*-bin.zip/ } == 1
+        result.task(":core:embeddedIntegTest").outcome == TaskOutcome.SUCCESS
+        new DefaultTestExecutionResult(file("subprojects/core"), "build", "", "", "embeddedIntegTest")
             .assertTestClassesExecuted("org.gradle.NameValidationIntegrationTest")
     }
 
     private void instantRun(String... tasks) {
         result = run(
-            "--${ConfigurationCacheOption.LONG_OPTION}=warn", // TODO on
+            "--${ConfigurationCacheOption.LONG_OPTION}",
+            "--${ConfigurationCacheProblemsOption.LONG_OPTION}=warn", // TODO remove
             *tasks
         )
     }

@@ -19,12 +19,17 @@ package org.gradle.plugins.lifecycle
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.TaskContainer
+import org.gradle.gradlebuild.BuildEnvironment
 import org.gradle.kotlin.dsl.*
+import java.util.Timer
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.timerTask
 
 
 /**
  * Lifecycle tasks used to to fan out the build into multiple builds in a CI pipeline.
  */
+@Suppress("unused")
 class LifecyclePlugin : Plugin<Project> {
 
     private
@@ -61,41 +66,95 @@ class LifecyclePlugin : Plugin<Project> {
     val instantTest = "instantTest"
 
     private
-    val vfsRetentionTest = "vfsRetentionTest"
+    val watchFsTest = "watchFsTest"
 
     private
     val soakTest = "soakTest"
 
     private
+    val ignoredSubprojects = listOf(
+        "soak", // soak test
+        "distributionsIntegTests", // test build distributions
+        "architectureTest" // sanity check
+    )
+
+    private
     val forceRealizeDependencyManagementTest = "forceRealizeDependencyManagementTest"
 
     override fun apply(project: Project): Unit = project.run {
+        setupTimeoutMonitorOnCI()
         setupGlobalState()
         sharedDependencyAndQualityConfigs()
 
-        subprojects {
-            tasks.registerCITestDistributionLifecycleTasks()
-            plugins.withId("gradlebuild.java-library") {
-                tasks.registerEarlyFeedbackLifecycleTasks()
-                tasks.named(quickTest) {
-                    dependsOn("test")
-                }
-                tasks.named(platformTest) {
-                    dependsOn("test")
-                }
-            }
-            plugins.withId("gradlebuild.integration-tests") {
-                tasks.configureCIIntegrationTestDistributionLifecycleTasks()
-            }
-            plugins.withId("gradlebuild.cross-version-tests") {
-                tasks.configureCICrossVersionTestDistributionLifecycleTasks()
-            }
-            plugins.withId("gradlebuild.publish-public-libraries") {
-                tasks.registerPublishLibrariesPromotionTasks()
-            }
-        }
+        subprojects.filter { it.name !in ignoredSubprojects }.forEach { it.registerLifecycleTasks() }
+
+        project(":soak").registerSoakTest()
+
         tasks.registerDistributionsPromotionTasks()
     }
+
+    private
+    fun Project.registerLifecycleTasks() {
+        tasks.registerCITestDistributionLifecycleTasks()
+        plugins.withId("gradlebuild.java-library") {
+            tasks.registerEarlyFeedbackLifecycleTasks()
+            tasks.named(quickTest) {
+                dependsOn("test")
+            }
+            tasks.named(platformTest) {
+                dependsOn("test")
+            }
+        }
+        plugins.withId("gradlebuild.integration-tests") {
+            tasks.configureCIIntegrationTestDistributionLifecycleTasks()
+        }
+        plugins.withId("gradlebuild.cross-version-tests") {
+            tasks.configureCICrossVersionTestDistributionLifecycleTasks()
+        }
+        plugins.withId("gradlebuild.publish-public-libraries") {
+            tasks.registerPublishLibrariesPromotionTasks()
+        }
+    }
+
+    private
+    fun Project.registerSoakTest() {
+        tasks.register(soakTest) {
+            description = "Run all soak tests defined in the :soak subproject"
+            group = ciGroup
+        }
+
+        tasks.named(soakTest) {
+            dependsOn(":soak:embeddedIntegTest")
+        }
+    }
+
+    /**
+     * Print all stacktraces of running JVMs on the machine upon timeout. Helps us diagnose deadlock issues.
+     */
+    private
+    fun Project.setupTimeoutMonitorOnCI() {
+        if (BuildEnvironment.isCiServer) {
+            val timer = Timer(true).apply {
+                schedule(timerTask {
+                    exec {
+                        commandLine("${System.getProperty("java.home")}/bin/java",
+                            rootProject.file("subprojects/internal-integ-testing/src/main/groovy/org/gradle/integtests/fixtures/timeout/JavaProcessStackTracesMonitor.java"))
+                    }
+                }, determineTimeoutMillis())
+            }
+            gradle.buildFinished {
+                timer.cancel()
+            }
+        }
+    }
+
+    private
+    fun Project.determineTimeoutMillis() =
+        if (isRequestedTask(compileAllBuild) || isRequestedTask(sanityCheck) || isRequestedTask(quickTest)) {
+            TimeUnit.MINUTES.toMillis(30)
+        } else {
+            TimeUnit.MINUTES.toMillis(165) // 2h45m
+        }
 
     private
     fun Project.setupGlobalState() {
@@ -107,9 +166,6 @@ class LifecyclePlugin : Plugin<Project> {
         }
         if (needsToUseTestVersionsAll()) {
             globalProperty("testVersions" to "all")
-        }
-        if (needsToUseAllDistribution()) {
-            globalProperty("useAllDistribution" to true)
         }
     }
 
@@ -135,12 +191,6 @@ class LifecyclePlugin : Plugin<Project> {
         || isRequestedTask(allVersionsIntegMultiVersionTest)
         || isRequestedTask(soakTest)
 
-    private
-    fun Project.needsToUseAllDistribution() = isRequestedTask(quickFeedbackCrossVersionTest)
-        || isRequestedTask(allVersionsCrossVersionTest)
-        || isRequestedTask(allVersionsIntegMultiVersionTest)
-        || isRequestedTask(noDaemonTest)
-
     /**
      * Basic compile and check lifecycle tasks.
      */
@@ -157,7 +207,7 @@ class LifecyclePlugin : Plugin<Project> {
             group = "verification"
             dependsOn(
                 "compileAll", ":docs:checkstyleApi", "codeQuality", ":internalBuildReports:allIncubationReportsZip",
-                ":distributions:checkBinaryCompatibility", ":docs:javadocAll",
+                ":architectureTest:checkBinaryCompatibility", ":docs:javadocAll",
                 ":architectureTest:test", ":toolingApi:toolingApiShadedJar")
         }
     }
@@ -170,8 +220,8 @@ class LifecyclePlugin : Plugin<Project> {
         register("packageBuild") {
             description = "Build production distros and smoke test them"
             group = "build"
-            dependsOn(":distributions:verifyIsProductionBuildEnvironment", ":distributions:buildDists",
-                ":distributions:integTest", ":docs:releaseNotes", ":docs:incubationReport", ":docs:checkDeadInternalLinks")
+            dependsOn(":distributionsFull:verifyIsProductionBuildEnvironment", ":distributionsFull:buildDists",
+                ":distributionsIntegTests:forkingIntegTest", ":docs:releaseNotes", ":docs:incubationReport", ":docs:checkDeadInternalLinks")
         }
     }
 
@@ -183,8 +233,8 @@ class LifecyclePlugin : Plugin<Project> {
         register("promotionBuild") {
             description = "Build production distros, smoke test them and publish"
             group = "publishing"
-            dependsOn(":distributions:verifyIsProductionBuildEnvironment", ":distributions:buildDists",
-                ":distributions:integTest", ":docs:releaseNotes", "publish", ":docs:incubationReport", ":docs:checkDeadInternalLinks")
+            dependsOn(":distributionsFull:verifyIsProductionBuildEnvironment", ":distributionsFull:buildDists", ":distributionsFull:copyDistributionsToRootBuild",
+                ":distributionsIntegTests:forkingIntegTest", ":docs:releaseNotes", "publish", ":docs:incubationReport", ":docs:checkDeadInternalLinks")
         }
     }
 
@@ -233,13 +283,8 @@ class LifecyclePlugin : Plugin<Project> {
             group = ciGroup
         }
 
-        register(vfsRetentionTest) {
-            description = "Run all integration tests with vfs retention enabled"
-            group = ciGroup
-        }
-
-        register(soakTest) {
-            description = "Run all soak tests defined in the :soak subproject"
+        register(watchFsTest) {
+            description = "Run all integration tests with file system watching enabled"
             group = ciGroup
         }
 
@@ -252,7 +297,7 @@ class LifecyclePlugin : Plugin<Project> {
     private
     fun TaskContainer.configureCIIntegrationTestDistributionLifecycleTasks() {
         named(quickTest) {
-            dependsOn("integTest")
+            dependsOn("embeddedIntegTest")
         }
 
         named(platformTest) {
@@ -277,12 +322,8 @@ class LifecyclePlugin : Plugin<Project> {
             dependsOn("instantIntegTest")
         }
 
-        named(vfsRetentionTest) {
-            dependsOn("vfsRetentionIntegTest")
-        }
-
-        named(soakTest) {
-            dependsOn(":soak:soakIntegTest")
+        named(watchFsTest) {
+            dependsOn("watchFsIntegTest")
         }
 
         named(forceRealizeDependencyManagementTest) {
@@ -293,7 +334,7 @@ class LifecyclePlugin : Plugin<Project> {
     private
     fun TaskContainer.configureCICrossVersionTestDistributionLifecycleTasks() {
         named(quickTest) {
-            dependsOn("crossVersionTest")
+            dependsOn("embeddedCrossVersionTest")
         }
 
         named(platformTest) {

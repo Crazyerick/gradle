@@ -1,23 +1,24 @@
 The Gradle team is excited to announce Gradle @version@.
 
-This release includes an experimental opt-in for the [file-system watching](#file-watching) feature that significantly improves build times, particularly in incremental scenarios. This is the first in a series of major improvements in the area planned over the course of several upcoming releases.
-
-There are also several other improvements including a [better version ordering](#dependency-ordering), [new samples](#new-samples) and many [bug fixes](#fixed-issues). 
-This release also contains an important [security fix](#security) for builds that sign artifacts.
+This release features [1](), [2](), ... [n](), and more.
 
 We would like to thank the following community contributors to this release of Gradle:
 
-[SheliakLyr](https://github.com/SheliakLyr),
-[Daniil Popov](https://github.com/int02h),
-[Scott Robinson](https://github.com/quad),
-[Cristian Garcia](https://github.com/CristianGM),
-[fransflippo](https://github.com/fransflippo),
-[Victor Turansky](https://github.com/turansky),
-[Gregor Dschung](https://github.com/chkpnt),
-[Roberto Perez Alcolea](https://github.com/rpalcolea),
-[kerr](https://github.com/hepin1989),
-[Chris Doré](https://github.com/oesolutions),
-and [Erhard Pointl](https://github.com/epeee).
+[Danny Thomas](https://github.com/DanielThomas),
+[Daiki Hirabayashi](https://github.com/dhirabayashi),
+[Sebastian Schuberth](https://github.com/sschuberth),
+[Frieder Bluemle](https://github.com/friederbluemle),
+[Brick Tamland](https://github.com/mleveill),
+[Stefan Oehme](https://github.com/oehme),
+[Yurii Serhiichuk](https://github.com/xSAVIKx),
+[JunHyung Lim](https://github.com/EntryPointKR),
+[Igor Dvorzhak](https://github.com/medb),
+and [Leonid Gaiazov](https://github.com/gaiazov).
+
+<!--
+Include only their name, impactful features should be called out separately below.
+ [Some person](https://github.com/some-person)
+-->
 
 ## Upgrade Instructions
 
@@ -25,97 +26,96 @@ Switch your build to use Gradle @version@ by updating your wrapper:
 
 `./gradlew wrapper --gradle-version=@version@`
 
-See the [Gradle 6.x upgrade guide](userguide/upgrading_version_6.html#changes_@baseVersion@) to learn about deprecations, breaking changes and other considerations when upgrading to Gradle @version@. 
+See the [Gradle 6.x upgrade guide](userguide/upgrading_version_6.html#changes_@baseVersion@) to learn about deprecations, breaking changes and other considerations when upgrading to Gradle @version@.
 
 For Java, Groovy, Kotlin and Android compatibility, see the [full compatibility notes](userguide/compatibility.html).
 
-<a name="performance-improvements"></a>
-## Performance improvements
+<!-- Do not add breaking changes or deprecations here! Add them to the upgrade guide instead. -->
 
-Fast feedback in local incremental builds is crucial for developer productivity. This is especially true if your IDE uses Gradle to build and run your project and run tests, which IntelliJ IDEA does by default. That’s why this scenario is the primary focus of performance improvements in this and several upcoming Gradle releases. 
+<!--
+Add release features here!
+## 1
 
-<a name="file-watching"></a>
-### File-system watching
+details of 1
 
-In an [incremental build](userguide/more_about_tasks.html#sec:up_to_date_checks), input and output files are checked to determine what needs to be rebuilt. This feature typically saves a lot of time; however, it adds some I/O overhead, which can be noticeable in large projects when not much has changed since the previous build. 
+## 2
 
-In this release, we've introduced an experimental _[file-system watching](userguide/gradle_daemon.html#sec:daemon_watch_fs)_ feature. When enabled, it allows Gradle to keep what it has learned about the file-system in memory during and between builds instead of polling the file system on each build. This significantly reduces the amount of disk I/O needed to determine what has changed since the previous build.
+details of 2
 
-You can enable this feature by supplying the parameter `--watch-fs` on the command-line. Eventually, this optimization will be enabled by default.
+## n
+-->
 
-Read more about this new feature and its impact [on the Gradle blog](https://blog.gradle.org/introducing-file-system-watching)!
+## Improved handling of ZIP archives on runtime classpaths
+Runtime classpath analysis can now inspect manifest and `META-INF` properties files, ignore changes to comments, and selectively ignore attributes or properties that don't impact the
+runtime classpath.
 
-![Build time improvements using Santa Tracker Android with file-system watching enabled, Linux with OpenJDK 8.](https://blog.gradle.org/images/introducing-file-system-watching/watch-fs-santa-tracker-linux.png)
-
-_Build time improvements using [Santa Tracker Android](https://github.com/gradle/santa-tracker-performance) with file-system watching enabled, Linux with OpenJDK 8._
-
-<a name="features"></a>
-## New features and usability improvements
-
-<a name="dependency-ordering"></a>
-### Improved dependency version ordering
-
-Gradle uses an implicit [version ordering](userguide/single_versions.html#version_ordering) to determine which version is considered newest when performing dependency version conflict resolution and when deciding which versions are included in a version range.
-
-The current version ordering algorithm can lead to potentially confusing results in certain cases. 
-
-For example, `RC` is considered a higher version than `SNAPSHOT` by Gradle. As a result, a user that intends to integrate with the latest version of a dependency will get the `RC` version through version conflict resolution instead of the `SNAPSHOT` once the `RC` version is released.  
-
-Additionally, versions like `2.0-RC1` or `2.0-SNAPSHOT` are included in a version range with an exclusive bound ending with `2.0[` because they are considered to be lower than `2.0`.
-
-With this version, Gradle provides an opt-in feature that changes version ordering to address these issues. For example, `SNAPSHOT` is considered to be a higher version than `RC` and versions like `2.0-RC1` or `2.0-SNAPSHOT` are excluded from a range ending with `2.0[`. 
-
-Activating the feature preview `VERSION_ORDERING_V2` in `settings.gradle(.kts)` enables these changes:
-```
-enableFeaturePreview("VERSION_ORDERING_V2")
-```
-
-See the [full documentation on version ordering](userguide/single_versions.html) for the details of the new algorithm.
-
-This ordering will be enabled by default in Gradle 7.0.  
-
-<a name="security"></a>
-## Security 
-
-### Signing: GnuPG key passphrase captured in INFO and DEBUG logs (CVE-2020-13165)
-
-Gradle 6.5 contains a fix for [CVE-2020-13165](https://github.com/gradle/gradle/security/advisories/GHSA-ww7h-4fx5-8c2j). 
-Users that sign artifacts using the built-in signing plugin with gpg-agent may be affected. If you do not sign your artifacts, you are not affected.
-
-## Documentation improvements
-
-<a name="new-samples"></a>
-### New samples
-
-The [sample index](samples/) includes new samples covering the following use cases:
-- [How to safely use credentials in a Gradle build](samples/sample_credentials_for_external_tool_via_stdin.html)
-- [How to develop local changes to two independent projects with a composite build](samples/sample_composite_builds_declared_substitutions.html)
-- [How to develop a custom Gradle plugin and test it with a real build](samples/sample_composite_builds_plugin_development.html)
-
-## Improvements for plugin authors
-
-<a name="lazy-dependencies"></a>
-### Derive dependencies from user configuration
-
-Gradle now supports using a [`org.gradle.api.provider.Provider`](javadoc/org/gradle/api/provider/Provider.html) when adding dependencies. 
-
-This is useful for plugin authors that need to supply different dependencies based on user-provided configuration.
-
-For example:
 ```groovy
-dependencies {
-    // Version of Guava defaults to 28.0-jre but can be changed 
-    // via Gradle property (-PguavaVersion=...)
-    def guavaVersion = providers.gradleProperty("guavaVersion")
-        .orElse("28.0-jre")
-
-    api(guavaVersion.map { "com.google.guava:guava:" + it })
+normalization {
+    runtimeClasspath {
+        metaInf {
+            ignoreAttribute("Implementation-Version")
+            ignoreProperty("timestamp")
+        }
+    }
 }
 ```
 
-## Improvements for tooling providers
+This improves the likelihood of [build cache hits](userguide/build_cache.html) when jar and property files on the classpath are regenerated and only differ by unimportant values or comments.
 
-IDEs can now use a new method from [`GradleConnector`](javadoc/org/gradle/tooling/GradleConnector.html) to gracefully and asynchronously shut down Gradle daemons so that they don't continue to use memory and other resources. This new method is expected to be used when the user exits the IDE.
+See the [userguide](userguide/more_about_tasks.html#sec:meta_inf_normalization) for further information.  Note that this API is incubating and will likely change in future releases as support
+is expanded for normalizing properties files outside of `META-INF`.
+
+## Gradle module metadata can be made reproducible
+
+The Gradle Module Metadata file contains a build identifier field which defaults to a unique ID generated during build execution.
+This results in the generated file being different at each build execution.
+
+This value can now be disabled at the publication level, allowing users to opt-in for a reproducible Gradle Module Metadata file.
+
+```groovy
+main(MavenPublication) {
+    from components.java
+    withoutBuildIdentifier()
+}
+```
+
+See the documentation for more information on [Gradle Module Metadata generation](userguide/publishing_gradle_module_metadata.html#sub:gmm-reproducible).
+
+## Variant-aware dependency substitution rules
+
+Previously, it wasn't possible for Gradle to substitute a dependency which uses a classifier with a dependency without classifier, nor was it possible to substitute a dependency _without_ classifier with a classified dependency.
+Similarly, dependencies with attributes (typically "platform" dependencies) or capabilities (typically "test fixtures" dependencies) could not be substituted.
+
+Gradle now supports substitution of dependencies with classifiers, attributes or capabilities.
+Gradle's dependency substitution API has been enriched to cover those cases.
+
+See the documentation on [variant-aware substitution](userguide/file:///home/cchampeau/DEV/PROJECTS/GITHUB/gradle/subprojects/docs/build/working/usermanual/render-multi/resolution_rules.html#sec:variant_aware_substitutions) for details.
+
+## Credentials API
+
+TBD 
+
+## Improvements for plugin authors
+
+### Injectable `ArchiveOperations` service
+
+Previously, it was only possible to create a `FileTree` for a ZIP or TAR archive by using the APIs provided by a `Project`.
+However, a `Project` object is not always available.
+
+The new `ArchiveOperations` service has [zipTree()](javadoc/org/gradle/api/file/ArchiveOperations.html#zipTree-java.lang.Object-) and [tarTree()](javadoc/org/gradle/api/file/ArchiveOperations.html#tarTree-java.lang.Object-) methods for creating read-only `FileTree` instances respectively for ZIP and TAR archives.
+
+See the [user manual](userguide/custom_gradle_types.html#service_injection) for how to inject services and the [`ArchiveOperations`](javadoc/org/gradle/api/file/ArchiveOperations.html) api documentation for more details and examples.
+
+
+## Promoted features
+Promoted features are features that were incubating in previous versions of Gradle but are now supported and subject to backwards compatibility.
+See the User Manual section on the “[Feature Lifecycle](userguide/feature_lifecycle.html)” for more information.
+
+The following are the features that have been promoted in this Gradle release.
+
+<!--
+### Example promoted
+-->
 
 ## Fixed issues
 
@@ -129,8 +129,7 @@ We love getting contributions from the Gradle community. For information on cont
 
 ## Reporting Problems
 
-If you find a problem with this release, please file a bug on [GitHub Issues](https://github.com/gradle/gradle/issues) adhering to our issue guidelines. 
+If you find a problem with this release, please file a bug on [GitHub Issues](https://github.com/gradle/gradle/issues) adhering to our issue guidelines.
 If you're not sure you're encountering a bug, please use the [forum](https://discuss.gradle.org/c/help-discuss).
 
 We hope you will build happiness with Gradle, and we look forward to your feedback via [Twitter](https://twitter.com/gradle) or on [GitHub](https://github.com/gradle).
-

@@ -5,13 +5,15 @@ dependencies {
     implementation(project(":kotlinDsl"))
     implementation(project(":performance"))
     implementation(project(":versioning"))
+    implementation(project(":packaging"))
 
+    implementation("org.eclipse.jgit:org.eclipse.jgit:5.7.0.202003110725-r")
     implementation("org.jsoup:jsoup:1.11.3")
     implementation("com.google.guava:guava")
     implementation("org.ow2.asm:asm:7.1")
     implementation("org.ow2.asm:asm-commons:7.1")
     implementation("com.google.code.gson:gson:2.7")
-    implementation("org.gradle:test-retry-gradle-plugin:1.1.3")
+    implementation("org.gradle:test-retry-gradle-plugin:1.1.6")
 
     testImplementation("org.junit.jupiter:junit-jupiter-params:5.6.2")
     testImplementation("junit:junit:4.13")
@@ -47,6 +49,7 @@ gradlePlugin {
     }
 }
 
-tasks.withType<Test> {
+tasks.withType<Test>().configureEach {
     environment("BUILD_BRANCH", "myBranch")
+    environment("BUILD_COMMIT_ID", "myCommitId")
 }

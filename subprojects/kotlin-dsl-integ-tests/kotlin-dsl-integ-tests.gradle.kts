@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import org.gradle.gradlebuild.test.integrationtests.IntegrationTest
 import plugins.futurePluginVersionsFile
 import org.gradle.gradlebuild.testing.integrationtests.cleanup.WhenNotEmpty
 
@@ -32,9 +31,10 @@ dependencies {
     integTestImplementation(project(":core"))
     integTestImplementation(project(":internalTesting"))
     integTestImplementation("com.squareup.okhttp3:mockwebserver:3.9.1")
-}
-configurations.integTestRuntimeClasspath {
-    extendsFrom(configurations.fullGradleRuntime.get())
+
+    integTestDistributionRuntimeOnly(project(":distributionsFull"))
+
+    integTestLocalRepository(project(":kotlinDslPlugins"))
 }
 
 val pluginBundles = listOf(
@@ -45,16 +45,6 @@ pluginBundles.forEach {
 }
 
 tasks {
-    val testEnvironment by registering {
-        pluginBundles.forEach {
-            dependsOn("$it:publishPluginsToTestRepository")
-        }
-    }
-
-    withType<IntegrationTest>().configureEach {
-        dependsOn(testEnvironment)
-    }
-
     val writeFuturePluginVersions by registering {
 
         group = "build"

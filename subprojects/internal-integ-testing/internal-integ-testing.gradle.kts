@@ -60,6 +60,9 @@ dependencies {
     implementation(library("jackson_databind"))
     implementation(library("ivy"))
     implementation(library("ant"))
+    implementation(library("jgit")) {
+        because("Some tests require a git reportitory - see AbstractIntegrationSpec.initGitDir(")
+    }
     testLibraries("sshd").forEach {
         // we depend on both the platform and the library
         implementation(it)
@@ -78,8 +81,10 @@ dependencies {
     }
     implementation(testFixtures(project(":core")))
 
-    testRuntimeOnly(project(":runtimeApiInfo"))
-    testRuntimeOnly(project(":workers"))
+    testRuntimeOnly(project(":distributionsCore")) {
+        because("Tests instantiate DefaultClassLoaderRegistry which requires a 'gradle-plugins.properties' through DefaultPluginModuleRegistry")
+    }
+    integTestDistributionRuntimeOnly(project(":distributionsCore"))
 }
 
 classycle {
@@ -89,7 +94,7 @@ classycle {
 val generatedResourcesDir = gradlebuildJava.generatedResourcesDir
 
 val prepareVersionsInfo = tasks.register<PrepareVersionsInfo>("prepareVersionsInfo") {
-    destFile = generatedResourcesDir.resolve("all-released-versions.properties")
+    destFile.set(generatedResourcesDir.file("all-released-versions.properties"))
     versions = releasedVersions.allPreviousVersions
     mostRecent = releasedVersions.mostRecentRelease
     mostRecentSnapshot = releasedVersions.mostRecentSnapshot
@@ -106,10 +111,10 @@ sourceSets.main {
 }
 
 @CacheableTask
-open class PrepareVersionsInfo : DefaultTask() {
+abstract class PrepareVersionsInfo : DefaultTask() {
 
-    @OutputFile
-    lateinit var destFile: File
+    @get:OutputFile
+    abstract val destFile: RegularFileProperty
 
     @Input
     lateinit var mostRecent: String
@@ -126,6 +131,6 @@ open class PrepareVersionsInfo : DefaultTask() {
         properties["mostRecent"] = mostRecent
         properties["mostRecentSnapshot"] = mostRecentSnapshot
         properties["versions"] = versions.joinToString(" ")
-        ReproduciblePropertiesWriter.store(properties, destFile)
+        ReproduciblePropertiesWriter.store(properties, destFile.get().asFile)
     }
 }

@@ -16,7 +16,7 @@
 import org.gradle.gradlebuild.test.integrationtests.integrationTestUsesSampleDir
 
 plugins {
-    gradlebuild.distribution.`plugins-api-java`
+    gradlebuild.distribution.`api-java`
 }
 
 gradlebuildJava.usedInWorkers()
@@ -62,9 +62,10 @@ dependencies {
     testImplementation(testFixtures(project(":baseServices")))
     testImplementation(testFixtures(project(":platformNative")))
 
-    testRuntimeOnly(project(":runtimeApiInfo"))
-
-    integTestRuntimeOnly(project(":testingJunitPlatform"))
+    testRuntimeOnly(project(":distributionsCore")) {
+        because("Tests instantiate DefaultClassLoaderRegistry which requires a 'gradle-plugins.properties' through DefaultPluginModuleRegistry")
+    }
+    integTestDistributionRuntimeOnly(project(":distributionsJvm"))
 }
 
 strictCompile {
@@ -79,6 +80,8 @@ classycle {
 tasks.named<Test>("test").configure {
     exclude("org/gradle/api/internal/tasks/testing/junit/ATestClass*.*")
     exclude("org/gradle/api/internal/tasks/testing/junit/ABroken*TestClass*.*")
+    exclude("org/gradle/api/internal/tasks/testing/junit/ATestSetUpWithBrokenSetUp*.*")
+    exclude("org/gradle/api/internal/tasks/testing/testng/ATestNGFactoryClass*.*")
 }
 
 integrationTestUsesSampleDir("subprojects/testing-jvm/src/main")

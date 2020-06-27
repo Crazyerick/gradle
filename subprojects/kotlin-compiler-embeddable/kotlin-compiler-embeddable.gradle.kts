@@ -4,7 +4,7 @@ import build.futureKotlin
 import build.kotlinVersion
 
 plugins {
-    gradlebuild.distribution.`core-implementation-kotlin`
+    gradlebuild.distribution.`implementation-kotlin`
 }
 
 description = "Kotlin Compiler Embeddable - patched for Gradle"
@@ -58,17 +58,5 @@ tasks {
     jar {
         dependsOn(patchKotlinCompilerEmbeddable)
         actions.clear()
-    }
-
-    val classesDir = layout.buildDirectory.dir("classes/patched")
-
-    val unpackPatchedKotlinCompilerEmbeddable by registering(Sync::class) {
-        dependsOn(patchKotlinCompilerEmbeddable)
-        from(zipTree(patchKotlinCompilerEmbeddable.get().outputFile))
-        into(classesDir)
-    }
-
-    sourceSets.main {
-        output.dir(files(classesDir).builtBy(unpackPatchedKotlinCompilerEmbeddable))
     }
 }

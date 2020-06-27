@@ -25,6 +25,7 @@ import org.gradle.api.artifacts.DependencySubstitution;
 import org.gradle.api.artifacts.DependencySubstitutions;
 import org.gradle.api.artifacts.ModuleVersionSelector;
 import org.gradle.api.artifacts.ResolutionStrategy;
+import org.gradle.api.capabilities.Capability;
 import org.gradle.api.internal.artifacts.ComponentSelectionRulesInternal;
 import org.gradle.api.internal.artifacts.ComponentSelectorConverter;
 import org.gradle.api.internal.artifacts.ImmutableModuleIdentifierFactory;
@@ -37,11 +38,15 @@ import org.gradle.api.internal.artifacts.dsl.dependencies.DependencyLockingProvi
 import org.gradle.api.internal.artifacts.ivyservice.dependencysubstitution.DefaultDependencySubstitutions;
 import org.gradle.api.internal.artifacts.ivyservice.dependencysubstitution.DependencySubstitutionRules;
 import org.gradle.api.internal.artifacts.ivyservice.dependencysubstitution.DependencySubstitutionsInternal;
+import org.gradle.api.internal.attributes.ImmutableAttributesFactory;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.internal.Actions;
 import org.gradle.internal.Cast;
 import org.gradle.internal.locking.NoOpDependencyLockingProvider;
+import org.gradle.internal.reflect.Instantiator;
 import org.gradle.internal.rules.SpecRuleAction;
 import org.gradle.internal.typeconversion.NormalizedTimeUnit;
+import org.gradle.internal.typeconversion.NotationParser;
 import org.gradle.internal.typeconversion.TimeUnitsParser;
 import org.gradle.vcs.internal.VcsResolver;
 
@@ -83,8 +88,12 @@ public class DefaultResolutionStrategy implements ResolutionStrategyInternal {
                                      ImmutableModuleIdentifierFactory moduleIdentifierFactory,
                                      ComponentSelectorConverter componentSelectorConverter,
                                      DependencyLockingProvider dependencyLockingProvider,
-                                     CapabilitiesResolutionInternal capabilitiesResolution) {
-        this(new DefaultCachePolicy(), DefaultDependencySubstitutions.forResolutionStrategy(componentIdentifierFactory, moduleIdentifierFactory), globalDependencySubstitutionRules, vcsResolver, moduleIdentifierFactory, componentSelectorConverter, dependencyLockingProvider, capabilitiesResolution);
+                                     CapabilitiesResolutionInternal capabilitiesResolution,
+                                     Instantiator instantiator,
+                                     ObjectFactory objectFactory,
+                                     ImmutableAttributesFactory attributesFactory,
+                                     NotationParser<Object, Capability> capabilitiesNotationParser) {
+        this(new DefaultCachePolicy(), DefaultDependencySubstitutions.forResolutionStrategy(componentIdentifierFactory, moduleIdentifierFactory, instantiator, objectFactory, attributesFactory, capabilitiesNotationParser), globalDependencySubstitutionRules, vcsResolver, moduleIdentifierFactory, componentSelectorConverter, dependencyLockingProvider, capabilitiesResolution);
     }
 
     DefaultResolutionStrategy(DefaultCachePolicy cachePolicy, DependencySubstitutionsInternal dependencySubstitutions, DependencySubstitutionRules globalDependencySubstitutionRules, VcsResolver vcsResolver, ImmutableModuleIdentifierFactory moduleIdentifierFactory, ComponentSelectorConverter componentSelectorConverter, DependencyLockingProvider dependencyLockingProvider, CapabilitiesResolutionInternal capabilitiesResolution) {

@@ -7,10 +7,14 @@ import org.gradle.internal.os.OperatingSystem
 object BuildEnvironment {
 
     const val CI_ENVIRONMENT_VARIABLE = "CI"
+    const val BUILD_BRANCH = "BUILD_BRANCH"
+    const val BUILD_COMMIT_ID = "BUILD_COMMIT_ID"
 
     val isCiServer = CI_ENVIRONMENT_VARIABLE in System.getenv()
+    val isIntelliJIDEA by lazy { System.getProperty("idea.version") != null }
     val isTravis = "TRAVIS" in System.getenv()
     val isJenkins = "JENKINS_HOME" in System.getenv()
+    val isGhActions = "GITHUB_ACTIONS" in System.getenv()
     val jvm = org.gradle.internal.jvm.Jvm.current()
     val javaVersion = JavaVersion.current()
     val isWindows = OperatingSystem.current().isWindows

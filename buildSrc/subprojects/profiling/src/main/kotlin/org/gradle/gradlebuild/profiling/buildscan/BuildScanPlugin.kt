@@ -19,16 +19,16 @@ import com.gradle.scan.plugin.BuildScanExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.internal.GradleInternal
 import org.gradle.api.internal.StartParameterInternal
 import org.gradle.api.plugins.quality.Checkstyle
 import org.gradle.api.plugins.quality.CodeNarc
 import org.gradle.api.reporting.Reporting
 import org.gradle.api.tasks.compile.AbstractCompile
-import org.gradle.build.ClasspathManifest
 import org.gradle.gradlebuild.BuildEnvironment.isCiServer
+import org.gradle.gradlebuild.BuildEnvironment.isGhActions
 import org.gradle.gradlebuild.BuildEnvironment.isJenkins
 import org.gradle.gradlebuild.BuildEnvironment.isTravis
+import org.gradle.gradlebuild.packaging.ClasspathManifest
 import org.gradle.kotlin.dsl.*
 import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
@@ -78,11 +78,12 @@ open class BuildScanPlugin : Plugin<Project> {
 
         extractCheckstyleAndCodenarcData()
         extractBuildCacheData()
-        extractVfsRetentionData()
+        extractWatchFsData()
 
-        if ((project.gradle as GradleInternal).buildType != GradleInternal.BuildType.TASKS) {
-            buildScan.tag("SYNC")
-        }
+// TODO LD - adapt after changes merged and master updated to build with them
+//        if ((project.gradle as GradleInternal).buildType != GradleInternal.BuildType.TASKS) {
+//            buildScan.tag("SYNC")
+//        }
     }
 
     private
@@ -121,7 +122,7 @@ open class BuildScanPlugin : Plugin<Project> {
     // 1. CompileAll is the seed build for docs:distDocs
     // 2. Gradle_Check_BuildDistributions is the seed build for other asciidoctor tasks
     // 3. buildScanPerformance test, which doesn't depend on compileAll
-    // 4. buildScanPerformance test, which doesn't depend on compileAll
+        // 4. buildScanPerformance test, which doesn't depend on compileAll
         isInBuild(
             "Gradle_Check_CompileAll",
             "Gradle_Check_BuildDistributions",
@@ -135,7 +136,7 @@ open class BuildScanPlugin : Plugin<Project> {
     // 1. CompileAll is the seed build
     // 2. Gradleception which re-builds Gradle with a new Gradle version
     // 3. buildScanPerformance test, which doesn't depend on compileAll
-    // 4. buildScanPerformance test, which doesn't depend on compileAll
+        // 4. buildScanPerformance test, which doesn't depend on compileAll
         isInBuild(
             "Gradle_Check_CompileAll",
             "Enterprise_Master_Components_GradleBuildScansPlugin_Performance_PerformanceLinux",
@@ -205,6 +206,11 @@ open class BuildScanPlugin : Plugin<Project> {
                         value("Build ID", System.getenv("BUILD_ID"))
                         setCommitId(System.getenv("GIT_COMMIT"))
                     }
+                    isGhActions -> {
+                        link("GitHub Actions Build", "https://github.com/gradle/gradle/runs/${System.getenv("GITHUB_RUN_ID")}")
+                        value("Build ID", "${System.getenv("GITHUB_RUN_ID")} ${System.getenv("GITHUB_RUN_NUMBER")}")
+                        setCommitId(System.getenv("GITHUB_SHA"))
+                    }
                     else -> {
                         link("TeamCity Build", System.getenv("BUILD_URL"))
                         value("Build ID", System.getenv("BUILD_ID"))
@@ -269,7 +275,7 @@ open class BuildScanPlugin : Plugin<Project> {
     }
 
     private
-    fun Project.extractVfsRetentionData() {
+    fun Project.extractWatchFsData() {
         val watchFileSystem = (project.gradle.startParameter as StartParameterInternal).isWatchFileSystem
         buildScan.value(watchFileSystemName, watchFileSystem.toString())
     }

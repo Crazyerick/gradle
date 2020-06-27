@@ -23,10 +23,6 @@ import spock.lang.Issue
 @LeaksFileHandles
 class PluginUseClassLoadingIntegrationSpec extends AbstractPluginSpec {
 
-    def setup() {
-        executer.requireGradleDistribution() // need accurate classloading
-    }
-
     @ToBeFixedForInstantExecution
     def "plugin classes are reused if possible"() {
         given:
@@ -54,7 +50,6 @@ class PluginUseClassLoadingIntegrationSpec extends AbstractPluginSpec {
     }
 
     @Issue("GRADLE-3503")
-    @ToBeFixedForInstantExecution
     def "Context classloader contains plugin classpath during application"() {
         publishPlugin("""
             def className = getClass().getName()

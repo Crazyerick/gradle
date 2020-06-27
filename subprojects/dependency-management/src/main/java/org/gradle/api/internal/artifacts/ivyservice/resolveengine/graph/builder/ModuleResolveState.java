@@ -262,20 +262,23 @@ class ModuleResolveState implements CandidateModule {
     private void restartUnattachedDependencies() {
         if (unattachedDependencies.size() == 1) {
             EdgeState singleDependency = unattachedDependencies.get(0);
-            singleDependency.restart();
+            singleDependency.restart(false);
         } else {
             for (EdgeState dependency : new ArrayList<>(unattachedDependencies)) {
-                dependency.restart();
+                dependency.restart(false);
             }
         }
     }
 
     public void addUnattachedDependency(EdgeState edge) {
         unattachedDependencies.add(edge);
+        edge.markUnattached();
     }
 
     public void removeUnattachedDependency(EdgeState edge) {
-        unattachedDependencies.remove(edge);
+        if (unattachedDependencies.remove(edge)) {
+            edge.markAttached();
+        }
     }
 
     public ComponentState getVersion(ModuleVersionIdentifier id, ComponentIdentifier componentIdentifier) {
@@ -384,8 +387,12 @@ class ModuleResolveState implements CandidateModule {
         return pendingDependencies;
     }
 
-    void addPendingNode(NodeState node) {
-        pendingDependencies.addNode(node);
+    void registerConstraintProvider(NodeState node) {
+        pendingDependencies.registerConstraintProvider(node);
+    }
+
+    void unregisterConstraintProvider(NodeState nodeState) {
+        pendingDependencies.unregisterConstraintProvider(nodeState);
     }
 
     public void maybeUpdateSelection() {

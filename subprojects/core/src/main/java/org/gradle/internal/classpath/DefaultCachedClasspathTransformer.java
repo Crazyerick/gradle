@@ -18,6 +18,7 @@ package org.gradle.internal.classpath;
 
 import com.google.common.collect.ImmutableList;
 import org.gradle.cache.CacheRepository;
+import org.gradle.cache.GlobalCacheLocations;
 import org.gradle.cache.PersistentCache;
 import org.gradle.internal.UncheckedException;
 import org.gradle.internal.concurrent.CompositeStoppable;
@@ -25,9 +26,9 @@ import org.gradle.internal.concurrent.ExecutorFactory;
 import org.gradle.internal.concurrent.ManagedExecutor;
 import org.gradle.internal.file.FileAccessTimeJournal;
 import org.gradle.internal.file.FileType;
+import org.gradle.internal.hash.HashCode;
 import org.gradle.internal.resource.local.FileAccessTracker;
 import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot;
-import org.gradle.internal.vfs.AdditiveCache;
 import org.gradle.internal.vfs.VirtualFileSystem;
 
 import java.io.Closeable;
@@ -37,7 +38,9 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.SynchronousQueue;
 import java.util.function.Consumer;
@@ -49,7 +52,7 @@ public class DefaultCachedClasspathTransformer implements CachedClasspathTransfo
     private final ClasspathWalker classpathWalker;
     private final ClasspathBuilder classpathBuilder;
     private final VirtualFileSystem virtualFileSystem;
-    private final List<AdditiveCache> otherCaches;
+    private final GlobalCacheLocations globalCacheLocations;
     private final ManagedExecutor executor;
 
     public DefaultCachedClasspathTransformer(
@@ -60,12 +63,12 @@ public class DefaultCachedClasspathTransformer implements CachedClasspathTransfo
         ClasspathBuilder classpathBuilder,
         VirtualFileSystem virtualFileSystem,
         ExecutorFactory executorFactory,
-        List<AdditiveCache> otherCaches
+        GlobalCacheLocations globalCacheLocations
     ) {
         this.classpathWalker = classpathWalker;
         this.classpathBuilder = classpathBuilder;
         this.virtualFileSystem = virtualFileSystem;
-        this.otherCaches = otherCaches;
+        this.globalCacheLocations = globalCacheLocations;
         this.cache = classpathTransformerCacheFactory.createCache(cacheRepository, fileAccessTimeJournal);
         this.fileAccessTracker = classpathTransformerCacheFactory.createFileAccessTracker(fileAccessTimeJournal);
         this.executor = executorFactory.create("jar transforms");
@@ -88,17 +91,35 @@ public class DefaultCachedClasspathTransformer implements CachedClasspathTransfo
         }
         ClasspathFileTransformer transformer = fileTransformerFor(transform);
         return cache.useCache(() -> {
+            Set<HashCode> seen = new HashSet<>();
             List<CacheOperation> operations = new ArrayList<>(urls.size());
             for (URL url : urls) {
-                CacheOperation operation = cached(url, transformer);
-                operation.schedule(executor);
-                operations.add(operation);
+                operations.add(cached(url, transformer, seen));
             }
             ImmutableList.Builder<URL> cachedFiles = ImmutableList.builderWithExpectedSize(urls.size());
             for (CacheOperation operation : operations) {
                 operation.collectUrl(cachedFiles::add);
             }
             return cachedFiles.build();
+        });
+    }
+
+    private ClassPath transformFiles(ClassPath classPath, ClasspathFileTransformer transformer) {
+        if (classPath.isEmpty()) {
+            return classPath;
+        }
+        return cache.useCache(() -> {
+            List<File> originalFiles = classPath.getAsFiles();
+            List<CacheOperation> operations = new ArrayList<>(originalFiles.size());
+            Set<HashCode> seen = new HashSet<>();
+            for (File file : originalFiles) {
+                operations.add(cached(file, transformer, seen));
+            }
+            List<File> cachedFiles = new ArrayList<>(originalFiles.size());
+            for (CacheOperation operation : operations) {
+                operation.collect(cachedFiles::add);
+            }
+            return DefaultClassPath.of(cachedFiles);
         });
     }
 
@@ -110,41 +131,21 @@ public class DefaultCachedClasspathTransformer implements CachedClasspathTransfo
         }
     }
 
-    private ClassPath transformFiles(ClassPath classPath, ClasspathFileTransformer transformer) {
-        if (classPath.isEmpty()) {
-            return classPath;
-        }
-        return cache.useCache(() -> {
-            List<File> originalFiles = classPath.getAsFiles();
-            List<CacheOperation> operations = new ArrayList<>(originalFiles.size());
-            for (File file : originalFiles) {
-                CacheOperation operation = cached(file, transformer);
-                operation.schedule(executor);
-                operations.add(operation);
-            }
-            List<File> cachedFiles = new ArrayList<>(originalFiles.size());
-            for (CacheOperation operation : operations) {
-                operation.collect(cachedFiles::add);
-            }
-            return DefaultClassPath.of(cachedFiles);
-        });
-    }
-
     private ClasspathFileTransformer fileTransformerFor(StandardTransform transform) {
         switch (transform) {
             case BuildLogic:
                 return new InstrumentingClasspathFileTransformer(classpathWalker, classpathBuilder, new InstrumentingTransformer());
             case None:
-                return new CopyingClasspathFileTransformer(otherCaches);
+                return new CopyingClasspathFileTransformer(globalCacheLocations);
             default:
                 throw new IllegalArgumentException();
         }
     }
 
-    private CacheOperation cached(URL original, ClasspathFileTransformer transformer) {
+    private CacheOperation cached(URL original, ClasspathFileTransformer transformer, Set<HashCode> seen) {
         if (original.getProtocol().equals("file")) {
             try {
-                return cached(new File(original.toURI()), transformer);
+                return cached(new File(original.toURI()), transformer, seen);
             } catch (URISyntaxException e) {
                 throw UncheckedException.throwAsUncheckedException(e);
             }
@@ -152,19 +153,23 @@ public class DefaultCachedClasspathTransformer implements CachedClasspathTransfo
         return new RetainUrl(original);
     }
 
-    private CacheOperation cached(File original, ClasspathFileTransformer transformer) {
+    private CacheOperation cached(File original, ClasspathFileTransformer transformer, Set<HashCode> seen) {
         CompleteFileSystemLocationSnapshot snapshot = virtualFileSystem.read(original.getAbsolutePath(), s -> s);
+        HashCode contentHash = snapshot.getHash();
         if (snapshot.getType() == FileType.Missing) {
             return new EmptyOperation();
         }
         if (shouldUseFromCache(original)) {
-            return getCachedJar(transformer, original, snapshot, cache.getBaseDir());
+            if (!seen.add(contentHash)) {
+                // Already seen an entry with the same content hash, so skip it
+                return new EmptyOperation();
+            }
+            // Lookup and generate cache entry asynchronously
+            TransformFile operation = new TransformFile(transformer, original, snapshot, cache.getBaseDir());
+            operation.schedule(executor);
+            return operation;
         }
         return new RetainFile(original);
-    }
-
-    private CacheOperation getCachedJar(ClasspathFileTransformer transformer, File original, CompleteFileSystemLocationSnapshot snapshot, File cacheDir) {
-        return new TransformFile(transformer, original, snapshot, cacheDir);
     }
 
     private boolean shouldUseFromCache(File original) {
@@ -178,11 +183,6 @@ public class DefaultCachedClasspathTransformer implements CachedClasspathTransfo
     }
 
     interface CacheOperation {
-        /**
-         * Starts work on producing the result of this operation.
-         */
-        void schedule(Executor executor);
-
         /**
          * Collects the result of this operation, blocking until complete.
          */
@@ -210,10 +210,6 @@ public class DefaultCachedClasspathTransformer implements CachedClasspathTransfo
         }
 
         @Override
-        public void schedule(Executor executor) {
-        }
-
-        @Override
         public void collect(Consumer<File> consumer) {
             throw new UnsupportedOperationException();
         }
@@ -232,20 +228,12 @@ public class DefaultCachedClasspathTransformer implements CachedClasspathTransfo
         }
 
         @Override
-        public void schedule(Executor executor) {
-        }
-
-        @Override
         public void collect(Consumer<File> consumer) {
             consumer.accept(original);
         }
     }
 
     private static class EmptyOperation implements CacheOperation {
-        @Override
-        public void schedule(Executor executor) {
-        }
-
         @Override
         public void collect(Consumer<File> consumer) {
         }
@@ -266,7 +254,6 @@ public class DefaultCachedClasspathTransformer implements CachedClasspathTransfo
             queue = new SynchronousQueue<>();
         }
 
-        @Override
         public void schedule(Executor executor) {
             executor.execute(() -> {
                 try {

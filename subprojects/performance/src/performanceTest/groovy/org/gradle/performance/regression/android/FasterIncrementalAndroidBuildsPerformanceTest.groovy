@@ -18,8 +18,9 @@ package org.gradle.performance.regression.android
 
 import org.gradle.initialization.StartParameterBuildOptions
 import org.gradle.initialization.StartParameterBuildOptions.ConfigurationCacheOption
+import org.gradle.initialization.StartParameterBuildOptions.ConfigurationCacheProblemsOption
 import org.gradle.integtests.fixtures.versions.AndroidGradlePluginVersions
-import org.gradle.internal.scan.config.fixtures.GradleEnterprisePluginSettingsFixture
+import org.gradle.internal.scan.config.fixtures.ApplyGradleEnterprisePluginFixture
 import org.gradle.performance.AbstractCrossBuildPerformanceTest
 import org.gradle.performance.categories.PerformanceExperiment
 import org.gradle.performance.fixture.BuildExperimentSpec
@@ -79,7 +80,7 @@ class FasterIncrementalAndroidBuildsPerformanceTest extends AbstractCrossBuildPe
     private void buildSpecForSupportedOptimizations(IncrementalAndroidTestProject testProject, @DelegatesTo(GradleBuildExperimentSpec.GradleBuilder) Closure scenarioConfiguration) {
         supportedOptimizations(testProject).each { name, Set<Optimization> enabledOptimizations ->
             runner.buildSpec {
-                invocation.args(*enabledOptimizations*.argument)
+                invocation.args(*enabledOptimizations*.arguments.flatten())
                 testProject.configureForLatestAgpVersionOfMinor(delegate, AGP_TARGET_VERSION)
                 displayName(name)
 
@@ -129,14 +130,17 @@ class FasterIncrementalAndroidBuildsPerformanceTest extends AbstractCrossBuildPe
     }
 
     enum Optimization {
-        CONFIGURATION_CACHING("--${ConfigurationCacheOption.LONG_OPTION}=warn"), // TODO on
+        CONFIGURATION_CACHING(
+            "--${ConfigurationCacheOption.LONG_OPTION}",
+            "--${ConfigurationCacheProblemsOption.LONG_OPTION}=warn" // TODO remove
+        ),
         WATCH_FS("--${StartParameterBuildOptions.WatchFileSystemOption.LONG_OPTION}")
 
-        Optimization(String argument) {
-            this.argument = argument
+        Optimization(String... arguments) {
+            this.arguments = arguments
         }
 
-        final String argument
+        final List<String> arguments
     }
 
     void applyEnterprisePlugin(GradleBuildExperimentSpec.GradleBuilder builder) {
@@ -148,7 +152,7 @@ class FasterIncrementalAndroidBuildsPerformanceTest extends AbstractCrossBuildPe
                 @Override
                 void beforeScenario(ScenarioContext context) {
                     originalSettingsFileText = settingsFile.text
-                    GradleEnterprisePluginSettingsFixture.applyEnterprisePlugin(settingsFile)
+                    ApplyGradleEnterprisePluginFixture.applyEnterprisePlugin(settingsFile)
                 }
 
                 @Override

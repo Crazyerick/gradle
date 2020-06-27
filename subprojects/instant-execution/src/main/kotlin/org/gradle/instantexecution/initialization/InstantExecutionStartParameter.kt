@@ -18,16 +18,11 @@ package org.gradle.instantexecution.initialization
 
 import org.gradle.StartParameter
 import org.gradle.api.internal.StartParameterInternal
-import org.gradle.initialization.StartParameterBuildOptions.ConfigurationCacheOption
+import org.gradle.initialization.StartParameterBuildOptions.ConfigurationCacheProblemsOption
 import org.gradle.initialization.layout.BuildLayout
 import org.gradle.instantexecution.extensions.unsafeLazy
-import org.gradle.internal.classpath.BuildLogicTransformStrategy
-import org.gradle.internal.classpath.CachedClasspathTransformer.StandardTransform.BuildLogic
-import org.gradle.internal.classpath.CachedClasspathTransformer.StandardTransform.None
-import org.gradle.internal.hash.HashUtil.createCompactMD5
 import org.gradle.internal.service.scopes.Scopes
 import org.gradle.internal.service.scopes.ServiceScope
-import org.gradle.util.GFileUtils
 import java.io.File
 
 
@@ -35,13 +30,13 @@ import java.io.File
 class InstantExecutionStartParameter(
     private val buildLayout: BuildLayout,
     startParameter: StartParameter
-) : BuildLogicTransformStrategy {
+) {
 
     private
     val startParameter = startParameter as StartParameterInternal
 
     val isEnabled: Boolean
-        get() = startParameter.configurationCache != ConfigurationCacheOption.Value.OFF
+        get() = startParameter.isConfigurationCache
 
     val isQuiet: Boolean
         get() = startParameter.isConfigurationCacheQuiet
@@ -50,10 +45,13 @@ class InstantExecutionStartParameter(
         get() = startParameter.configurationCacheMaxProblems
 
     val failOnProblems: Boolean
-        get() = startParameter.configurationCache == ConfigurationCacheOption.Value.ON
+        get() = startParameter.configurationCacheProblems == ConfigurationCacheProblemsOption.Value.FAIL
 
     val recreateCache: Boolean
         get() = startParameter.isConfigurationCacheRecreateCache
+
+    val currentDirectory: File
+        get() = startParameter.currentDir
 
     val settingsDirectory: File
         get() = buildLayout.settingsDir
@@ -68,47 +66,9 @@ class InstantExecutionStartParameter(
         startParameter.taskNames
     }
 
-    override fun transformToApplyToBuildLogic() = if (isEnabled) {
-        BuildLogic
-    } else {
-        // For now, disable instrumentation when configuration caching is not used
-        // This means that build logic will use different classpaths when the configuration cache is enabled or disabled
-        None
-    }
-
-    val instantExecutionCacheKey: String by unsafeLazy {
-        // The following characters are not valid in task names
-        // and can be used as separators: /, \, :, <, >, ", ?, *, |
-        // except we also accept qualified task names with :, so colon is out.
-        val cacheKey = StringBuilder()
-        requestedTaskNames.joinTo(cacheKey, separator = "/")
-        val excludedTaskNames = startParameter.excludedTaskNames
-        if (excludedTaskNames.isNotEmpty()) {
-            excludedTaskNames.joinTo(cacheKey, prefix = "<", separator = "/")
-        }
-        val taskNames = requestedTaskNames.asSequence() + excludedTaskNames.asSequence()
-        val hasRelativeTaskName = taskNames.any { !it.startsWith(':') }
-        if (hasRelativeTaskName) {
-            // Because unqualified task names are resolved relative to the enclosing
-            // sub-project according to `invocationDirectory`,
-            // the relative invocation directory information must be part of the key.
-            relativeChildPathOrNull(startParameter.currentDir, rootDirectory)?.let { relativeSubDir ->
-                cacheKey.append('*')
-                cacheKey.append(relativeSubDir)
-            }
-        }
-        createCompactMD5(cacheKey.toString())
-    }
+    val excludedTaskNames: Set<String>
+        get() = startParameter.excludedTaskNames
 
     val allInitScripts: List<File>
         get() = startParameter.allInitScripts
-
-    /**
-     * Returns the path of [target] relative to [base] if
-     * [target] is a child of [base] or `null` otherwise.
-     */
-    private
-    fun relativeChildPathOrNull(target: File, base: File): String? =
-        GFileUtils.relativePathOf(target, base)
-            .takeIf { !it.startsWith('.') }
 }

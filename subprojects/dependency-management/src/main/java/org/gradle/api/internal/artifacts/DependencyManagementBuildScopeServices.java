@@ -34,6 +34,7 @@ import org.gradle.api.internal.artifacts.ivyservice.ArtifactCacheLockingManager;
 import org.gradle.api.internal.artifacts.ivyservice.ArtifactCacheMetadata;
 import org.gradle.api.internal.artifacts.ivyservice.ArtifactCachesProvider;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ConnectionFailureRepositoryBlacklister;
+import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.DynamicVersionResolutionListener;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ModuleDescriptorHashCodec;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ModuleDescriptorHashModuleSource;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.RepositoryBlacklister;
@@ -139,6 +140,7 @@ import org.gradle.internal.component.external.model.PreferJavaRuntimeVariant;
 import org.gradle.internal.component.model.PersistentModuleSource;
 import org.gradle.internal.event.ListenerManager;
 import org.gradle.internal.file.FileAccessTimeJournal;
+import org.gradle.internal.file.RelativeFilePathResolver;
 import org.gradle.internal.hash.ChecksumService;
 import org.gradle.internal.hash.FileHasher;
 import org.gradle.internal.installation.CurrentGradleInstallation;
@@ -149,9 +151,7 @@ import org.gradle.internal.reflect.Instantiator;
 import org.gradle.internal.resolve.caching.ComponentMetadataRuleExecutor;
 import org.gradle.internal.resolve.caching.ComponentMetadataSupplierRuleExecutor;
 import org.gradle.internal.resolve.caching.DesugaringAttributeContainerSerializer;
-import org.gradle.internal.resource.DefaultTextFileResourceLoader;
 import org.gradle.internal.resource.ExternalResourceName;
-import org.gradle.internal.resource.TextFileResourceLoader;
 import org.gradle.internal.resource.TextUriResourceLoader;
 import org.gradle.internal.resource.cached.ByUrlCachedExternalResourceIndex;
 import org.gradle.internal.resource.cached.CachedExternalResourceIndex;
@@ -206,12 +206,13 @@ class DependencyManagementBuildScopeServices {
 
     DependencyFactory createDependencyFactory(
         Instantiator instantiator,
-        ProjectAccessListener projectAccessListener,
+        ListenerManager listenerManager,
         StartParameter startParameter,
         ClassPathRegistry classPathRegistry,
         CurrentGradleInstallation currentGradleInstallation,
         FileCollectionFactory fileCollectionFactory,
         RuntimeShadedJarFactory runtimeShadedJarFactory,
+        ProjectAccessListener projectAccessListener,
         ImmutableAttributesFactory attributesFactory,
         SimpleMapInterner stringInterner) {
         NotationParser<Object, Capability> capabilityNotationParser = new CapabilityNotationParserFactory(false).create();
@@ -401,16 +402,12 @@ class DependencyManagementBuildScopeServices {
         return new DefaultExternalResourceFileStore(artifactCacheMetadata.getExternalResourcesStoreDirectory(), new TmpDirTemporaryFileProvider(), fileAccessTimeJournal, checksumService);
     }
 
-    TextFileResourceLoader createTextFileResourceLoader() {
-        return new DefaultTextFileResourceLoader();
-    }
-
-    TextUriResourceLoader.Factory createTextUrlResourceLoaderFactory(FileStoreAndIndexProvider fileStoreAndIndexProvider, RepositoryTransportFactory repositoryTransportFactory) {
+    TextUriResourceLoader.Factory createTextUrlResourceLoaderFactory(FileStoreAndIndexProvider fileStoreAndIndexProvider, RepositoryTransportFactory repositoryTransportFactory, RelativeFilePathResolver resolver) {
         final HashSet<String> schemas = Sets.newHashSet("https", "http");
         return redirectVerifier -> {
             RepositoryTransport transport = repositoryTransportFactory.createTransport(schemas, "resources http", Collections.emptyList(), redirectVerifier);
             ExternalResourceAccessor externalResourceAccessor = new DefaultExternalResourceAccessor(fileStoreAndIndexProvider.getExternalResourceFileStore(), transport.getResourceAccessor());
-            return new CachingTextUriResourceLoader(externalResourceAccessor, schemas);
+            return new CachingTextUriResourceLoader(externalResourceAccessor, schemas, resolver);
         };
     }
 
@@ -486,14 +483,16 @@ class DependencyManagementBuildScopeServices {
         return override;
     }
 
-    ResolveIvyFactory createResolveIvyFactory(StartParameterResolutionOverride startParameterResolutionOverride, ModuleRepositoryCacheProvider moduleRepositoryCacheProvider,
+    ResolveIvyFactory createResolveIvyFactory(StartParameterResolutionOverride startParameterResolutionOverride,
+                                              ModuleRepositoryCacheProvider moduleRepositoryCacheProvider,
                                               DependencyVerificationOverride dependencyVerificationOverride,
                                               BuildCommencedTimeProvider buildCommencedTimeProvider,
                                               VersionComparator versionComparator,
                                               ImmutableModuleIdentifierFactory moduleIdentifierFactory,
                                               RepositoryBlacklister repositoryBlacklister,
                                               VersionParser versionParser,
-                                              InstantiatorFactory instantiatorFactory) {
+                                              InstantiatorFactory instantiatorFactory,
+                                              ListenerManager listenerManager) {
         return new ResolveIvyFactory(
             moduleRepositoryCacheProvider,
             startParameterResolutionOverride,
@@ -503,7 +502,8 @@ class DependencyManagementBuildScopeServices {
             moduleIdentifierFactory,
             repositoryBlacklister,
             versionParser,
-            instantiatorFactory
+            instantiatorFactory,
+            listenerManager.getBroadcaster(DynamicVersionResolutionListener.class)
         );
     }
 
@@ -518,7 +518,8 @@ class DependencyManagementBuildScopeServices {
                                                                 ImmutableAttributesFactory attributesFactory,
                                                                 VersionSelectorScheme versionSelectorScheme,
                                                                 VersionParser versionParser,
-                                                                ComponentMetadataSupplierRuleExecutor componentMetadataSupplierRuleExecutor) {
+                                                                ComponentMetadataSupplierRuleExecutor componentMetadataSupplierRuleExecutor,
+                                                                InstantiatorFactory instantiatorFactory) {
         return new DefaultArtifactDependencyResolver(
             buildOperationExecutor,
             resolverFactories,
@@ -531,7 +532,8 @@ class DependencyManagementBuildScopeServices {
             attributesFactory,
             versionSelectorScheme,
             versionParser,
-            componentMetadataSupplierRuleExecutor);
+            componentMetadataSupplierRuleExecutor,
+            instantiatorFactory);
     }
 
     ProjectPublicationRegistry createProjectPublicationRegistry() {

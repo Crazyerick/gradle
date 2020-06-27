@@ -18,15 +18,14 @@ package org.gradle.api.internal.artifacts.configurations
 
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.UnknownConfigurationException
-import org.gradle.api.internal.DocumentationRegistry
 import org.gradle.api.internal.CollectionCallbackActionDecorator
+import org.gradle.api.internal.DocumentationRegistry
 import org.gradle.api.internal.artifacts.ComponentSelectorConverter
 import org.gradle.api.internal.artifacts.ConfigurationResolver
 import org.gradle.api.internal.artifacts.DefaultModuleIdentifier
 import org.gradle.api.internal.artifacts.ImmutableModuleIdentifierFactory
 import org.gradle.api.internal.artifacts.component.ComponentIdentifierFactory
 import org.gradle.api.internal.artifacts.dsl.dependencies.DependencyLockingProvider
-import org.gradle.api.internal.artifacts.dsl.dependencies.ProjectFinder
 import org.gradle.api.internal.artifacts.ivyservice.dependencysubstitution.DependencySubstitutionRules
 import org.gradle.api.internal.artifacts.ivyservice.moduleconverter.LocalComponentMetadataBuilder
 import org.gradle.api.internal.attributes.ImmutableAttributesFactory
@@ -50,7 +49,6 @@ class DefaultConfigurationContainerTest extends Specification {
     private ListenerManager listenerManager = Stub(ListenerManager.class)
     private DependencyMetaDataProvider metaDataProvider = Mock(DependencyMetaDataProvider.class)
     private ProjectAccessListener projectAccessListener = Mock(ProjectAccessListener.class)
-    private ProjectFinder projectFinder = Mock(ProjectFinder)
     private LocalComponentMetadataBuilder metaDataBuilder = Mock(LocalComponentMetadataBuilder)
     private ComponentIdentifierFactory componentIdentifierFactory = Mock(ComponentIdentifierFactory)
     private DependencySubstitutionRules globalSubstitutionRules = Mock(DependencySubstitutionRules)
@@ -72,11 +70,30 @@ class DefaultConfigurationContainerTest extends Specification {
     }
     private ComponentSelectorConverter componentSelectorConverter = Mock()
     private DefaultConfigurationContainer configurationContainer = instantiator.newInstance(DefaultConfigurationContainer.class,
-            resolver, instantiator, new RootScriptDomainObjectContext(),
-            listenerManager, metaDataProvider, projectAccessListener, projectFinder, metaDataBuilder, TestFiles.fileCollectionFactory(),
-            globalSubstitutionRules, vcsMappingsInternal, componentIdentifierFactory, buildOperationExecutor, taskResolver,
-            immutableAttributesFactory, moduleIdentifierFactory, componentSelectorConverter, lockingProvider, projectStateRegistry,
-            documentationRegistry, callbackActionDecorator, userCodeApplicationContext, TestUtil.domainObjectCollectionFactory())
+        resolver,
+        instantiator,
+        new RootScriptDomainObjectContext(),
+        listenerManager,
+        metaDataProvider,
+        projectAccessListener,
+        metaDataBuilder,
+        TestFiles.fileCollectionFactory(),
+        globalSubstitutionRules,
+        vcsMappingsInternal,
+        componentIdentifierFactory,
+        buildOperationExecutor,
+        taskResolver,
+        immutableAttributesFactory,
+        moduleIdentifierFactory,
+        componentSelectorConverter,
+        lockingProvider,
+        projectStateRegistry,
+        documentationRegistry,
+        callbackActionDecorator,
+        userCodeApplicationContext,
+        TestUtil.domainObjectCollectionFactory(),
+        TestUtil.objectFactory()
+    )
 
     def addsNewConfigurationWhenConfiguringSelf() {
         when:

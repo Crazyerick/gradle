@@ -105,8 +105,8 @@ class ArtifactTransformCachingIntegrationTest extends AbstractHttpDependencyReso
         when:
         succeeds ":util:resolve"
 
-        def transformationPosition1 = output.indexOf("> Transform artifact lib1.jar (project :lib) with FileSizer")
-        def transformationPosition2 = output.indexOf("> Transform artifact lib2.jar (project :lib) with FileSizer")
+        def transformationPosition1 = output.indexOf("> Transform lib1.jar (project :lib) with FileSizer")
+        def transformationPosition2 = output.indexOf("> Transform lib2.jar (project :lib) with FileSizer")
         def taskPosition = output.indexOf("> Task :util:resolve")
 
         then:
@@ -135,8 +135,8 @@ class ArtifactTransformCachingIntegrationTest extends AbstractHttpDependencyReso
         succeeds ":util:resolve", ":util2:resolve"
 
         then:
-        output.count("> Transform artifact lib1.jar (project :lib) with FileSizer") == 1
-        output.count("> Transform artifact lib2.jar (project :lib) with FileSizer") == 1
+        output.count("> Transform lib1.jar (project :lib) with FileSizer") == 1
+        output.count("> Transform lib2.jar (project :lib) with FileSizer") == 1
     }
 
     def "scheduled chained transformation is only invoked once per subject"() {
@@ -234,12 +234,12 @@ class ArtifactTransformCachingIntegrationTest extends AbstractHttpDependencyReso
         run ":app1:resolveRed", ":app2:resolveYellow"
 
         then:
-        output.count("> Transform artifact lib1.jar (project :lib) with MakeBlueToGreenThings") == 1
-        output.count("> Transform artifact lib2.jar (project :lib) with MakeBlueToGreenThings") == 1
-        output.count("> Transform artifact lib1.jar (project :lib) with MakeGreenToYellowThings") == 1
-        output.count("> Transform artifact lib2.jar (project :lib) with MakeGreenToYellowThings") == 1
-        output.count("> Transform artifact lib1.jar (project :lib) with MakeGreenToRedThings") == 1
-        output.count("> Transform artifact lib2.jar (project :lib) with MakeGreenToRedThings") == 1
+        output.count("> Transform lib1.jar (project :lib) with MakeBlueToGreenThings") == 1
+        output.count("> Transform lib2.jar (project :lib) with MakeBlueToGreenThings") == 1
+        output.count("> Transform lib1.jar (project :lib) with MakeGreenToYellowThings") == 1
+        output.count("> Transform lib2.jar (project :lib) with MakeGreenToYellowThings") == 1
+        output.count("> Transform lib1.jar (project :lib) with MakeGreenToRedThings") == 1
+        output.count("> Transform lib2.jar (project :lib) with MakeGreenToRedThings") == 1
     }
 
     def "executes transform immediately when required during task graph building"() {
@@ -307,8 +307,8 @@ class ArtifactTransformCachingIntegrationTest extends AbstractHttpDependencyReso
         when:
         run(":app:toBeFinalized", "withDependency", "--info")
         then:
-        output.count("Transforming artifact lib1.jar (project :lib) with MakeGreen") == 2
-        output.count("Transforming artifact lib2.jar (project :lib) with MakeGreen") == 2
+        output.count("Transforming lib1.jar (project :lib) with MakeGreen") == 2
+        output.count("Transforming lib2.jar (project :lib) with MakeGreen") == 2
     }
 
     def "each file is transformed once per set of configuration parameters"() {
@@ -721,7 +721,6 @@ class ArtifactTransformCachingIntegrationTest extends AbstractHttpDependencyReso
         output.count("Transformed") == 0
     }
 
-    @ToBeFixedForInstantExecution
     def "transform is run again and old output is removed after it failed in previous build"() {
         given:
         buildFile << declareAttributes() << multiProjectWithJarSizeTransform() << withJarTasks() << withLibJarDependency("lib3.jar")
@@ -761,7 +760,6 @@ class ArtifactTransformCachingIntegrationTest extends AbstractHttpDependencyReso
         output.count("Transformed") == 0
     }
 
-    @ToBeFixedForInstantExecution
     def "transform is re-executed when input file content changes between builds"() {
         given:
         buildFile << declareAttributes() << multiProjectWithJarSizeTransform() << withClassesSizeTransform() << withLibJarDependency()
@@ -1017,8 +1015,8 @@ class ArtifactTransformCachingIntegrationTest extends AbstractHttpDependencyReso
         failingTransform << (1..4)
     }
 
+    @ToBeFixedForInstantExecution(because = "resolves external dependency when writing cache entry, rather than when running consuming task, so exception chain is different")
     @Unroll
-    @ToBeFixedForInstantExecution(iterationMatchers = ".*scheduled: true\\)")
     def "failure in resolution propagates to chain (scheduled: #scheduled)"() {
         given:
         def module = mavenHttpRepo.module("test", "test", "1.3").publish()
@@ -1125,7 +1123,6 @@ class ArtifactTransformCachingIntegrationTest extends AbstractHttpDependencyReso
     """
 
     @Unroll
-    @ToBeFixedForInstantExecution
     def "transform is rerun when output is #action between builds"() {
         given:
         buildFile << declareAttributes() << multiProjectWithJarSizeTransform() << withClassesSizeTransform() << withLibJarDependency()
@@ -1193,7 +1190,6 @@ class ArtifactTransformCachingIntegrationTest extends AbstractHttpDependencyReso
         action << ['changed', 'removed', 'added']
     }
 
-    @ToBeFixedForInstantExecution
     def "transform is supplied with a different output directory when transform implementation changes"() {
         given:
         buildFile << declareAttributes() << multiProjectWithJarSizeTransform(parameterObject: useParameterObject) << withClassesSizeTransform(useParameterObject)
@@ -1243,7 +1239,6 @@ class ArtifactTransformCachingIntegrationTest extends AbstractHttpDependencyReso
         useParameterObject << [true, false]
     }
 
-    @ToBeFixedForInstantExecution
     def "transform is supplied with a different output directory when parameters change"() {
         given:
         // Use another script to define the value, so that transform implementation does not change when the value is changed
@@ -1297,7 +1292,7 @@ class ArtifactTransformCachingIntegrationTest extends AbstractHttpDependencyReso
         useParameterObject << [true, false]
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForInstantExecution(because = "changing and dynamic versions are not honored")
     def "transform is supplied with a different output directory when external dependency changes"() {
         def m1 = mavenHttpRepo.module("test", "changing", "1.2").publish()
         def m2 = mavenHttpRepo.module("test", "snapshot", "1.2-SNAPSHOT").publish()

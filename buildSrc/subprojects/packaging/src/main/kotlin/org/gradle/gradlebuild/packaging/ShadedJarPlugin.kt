@@ -20,7 +20,6 @@ import accessors.base
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
-import org.gradle.api.attributes.Attribute
 import org.gradle.api.attributes.Bundling
 import org.gradle.api.attributes.Category
 import org.gradle.api.attributes.DocsType
@@ -177,13 +176,6 @@ open class ShadedJarPlugin : Plugin<Project> {
 
     private
     fun Project.addShadedJarVariant(shadedJarTask: TaskProvider<ShadedJar>) {
-        val shadedJarArtifact = mapOf(
-            "file" to shadedJarTask.get().jarFile.get().asFile,
-            "name" to base.archivesBaseName,
-            "type" to "jar",
-            "builtBy" to shadedJarTask
-        )
-
         val implementation by configurations
         val shadedImplementation by configurations.creating {
             isCanBeResolved = false
@@ -202,7 +194,10 @@ open class ShadedJarPlugin : Plugin<Project> {
                 attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 8)
             }
             extendsFrom(shadedImplementation)
-            outgoing.artifact(shadedJarArtifact)
+            outgoing.artifact(shadedJarTask) {
+                name = base.archivesBaseName
+                type = "jar"
+            }
         }
 
         // publish only the shaded variant
@@ -226,8 +221,7 @@ open class ShadedJarPlugin : Plugin<Project> {
             attributes {
                 attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage.JAVA_RUNTIME))
                 attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category.DOCUMENTATION))
-                attribute(DocsType.DOCS_TYPE_ATTRIBUTE, objects.named(DocsType.SOURCES))
-                attribute(Attribute.of("org.gradle.docselements", String::class.java), "sources")
+                attribute(DocsType.DOCS_TYPE_ATTRIBUTE, objects.named("gradle-source-folders"))
             }
         }
         tasks.named<Jar>("sourcesJar") {

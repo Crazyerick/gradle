@@ -15,10 +15,10 @@
  */
 
 plugins {
-    gradlebuild.distribution.`core-api-java`
+    gradlebuild.distribution.`api-java`
 }
 
-description = "File-system watchers for keeping the VFS up-to-date"
+description = "File system watchers for keeping the VFS up-to-date"
 
 dependencies {
     api(project(":snapshots"))
@@ -31,16 +31,11 @@ dependencies {
 
     testImplementation(project(":processServices"))
     testImplementation(project(":resources"))
+    testImplementation(project(":persistentCache"))
     testImplementation(project(":buildOption"))
     testImplementation(testFixtures(project(":core")))
     testImplementation(testFixtures(project(":fileCollections")))
     testImplementation(library("commons_io"))
 
-    integTestRuntimeOnly(project(":runtimeApiInfo"))
-    integTestRuntimeOnly(project(":workers"))
-    integTestRuntimeOnly(project(":dependencyManagement"))
-    integTestRuntimeOnly(project(":apiMetadata"))
-    integTestRuntimeOnly(project(":kotlinDsl"))
-    integTestRuntimeOnly(project(":kotlinDslProviderPlugins"))
-    integTestRuntimeOnly(project(":kotlinDslToolingBuilders"))
+    integTestDistributionRuntimeOnly(project(":distributionsCore"))
 }

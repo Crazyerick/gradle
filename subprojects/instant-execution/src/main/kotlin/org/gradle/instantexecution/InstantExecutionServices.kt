@@ -17,6 +17,7 @@
 package org.gradle.instantexecution
 
 import org.gradle.api.internal.SettingsInternal
+import org.gradle.configuration.internal.UserCodeApplicationContext
 import org.gradle.instantexecution.fingerprint.InstantExecutionCacheFingerprintController
 import org.gradle.instantexecution.initialization.DefaultInstantExecutionProblemsListener
 import org.gradle.instantexecution.initialization.InstantExecutionProblemsListener
@@ -28,6 +29,8 @@ import org.gradle.internal.build.PublicBuildPath
 import org.gradle.internal.event.ListenerManager
 import org.gradle.internal.service.ServiceRegistration
 import org.gradle.internal.service.scopes.AbstractPluginServiceRegistry
+import org.gradle.internal.service.scopes.Scopes
+import org.gradle.internal.service.scopes.ServiceScope
 
 
 class InstantExecutionServices : AbstractPluginServiceRegistry() {
@@ -41,6 +44,7 @@ class InstantExecutionServices : AbstractPluginServiceRegistry() {
         registration.run {
             add(BuildTreeListenerManager::class.java)
             add(InstantExecutionStartParameter::class.java)
+            add(InstantExecutionCacheKey::class.java)
             add(InstantExecutionReport::class.java)
             add(InstantExecutionProblems::class.java)
         }
@@ -51,13 +55,15 @@ class InstantExecutionServices : AbstractPluginServiceRegistry() {
             add(InstantExecutionClassLoaderScopeRegistryListener::class.java)
             add(InstantExecutionBuildScopeListenerManagerAction::class.java)
             add(SystemPropertyAccessListener::class.java)
+            add(RelevantProjectsRegistry::class.java)
+            add(InstantExecutionCacheFingerprintController::class.java)
             addProvider(BuildServicesProvider())
         }
     }
 
     override fun registerGradleServices(registration: ServiceRegistration) {
         registration.run {
-            add(InstantExecutionCacheFingerprintController::class.java)
+            add(InstantExecutionCache::class.java)
             add(InstantExecutionHost::class.java)
             add(DefaultInstantExecution::class.java)
         }
@@ -66,16 +72,22 @@ class InstantExecutionServices : AbstractPluginServiceRegistry() {
 
 
 class BuildServicesProvider {
-    fun createInstantExecutionProblemsListener(buildPath: PublicBuildPath, startParameter: InstantExecutionStartParameter, problemsListener: InstantExecutionProblems): InstantExecutionProblemsListener {
+    fun createInstantExecutionProblemsListener(
+        buildPath: PublicBuildPath,
+        startParameter: InstantExecutionStartParameter,
+        problemsListener: InstantExecutionProblems,
+        userCodeApplicationContext: UserCodeApplicationContext
+    ): InstantExecutionProblemsListener {
         if (!startParameter.isEnabled || buildPath.buildPath.name == SettingsInternal.BUILD_SRC) {
             return NoOpInstantExecutionProblemsListener()
         } else {
-            return DefaultInstantExecutionProblemsListener(problemsListener)
+            return DefaultInstantExecutionProblemsListener(problemsListener, userCodeApplicationContext)
         }
     }
 }
 
 
+@ServiceScope(Scopes.BuildTree)
 class BuildTreeListenerManager(
     val service: ListenerManager
 )
